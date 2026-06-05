@@ -1,0 +1,662 @@
+"use strict";
+/* Microsoft 365 Copilot adoption board.
+   Self-contained module: loads the three Copilot usage exports, computes
+   leadership-facing datasets, and renders into the #cp-app container.
+   Element IDs are prefixed "cp" so this can coexist with the Viva board
+   on the same page. */
+(function(){
+  // The three exports share a base name plus a period suffix. Microsoft's
+  // portal exports the suffix a few different ways ( _D30 , _'D30' , _30 ),
+  // so we probe several styles and auto-detect whichever window is present.
+  var FOLDER = "Usage%20Reports/";
+  var BASES = {
+    byProduct:  "CopilotAdoptionByProduct",
+    trend:      "CopilotAdoptionTrend",
+    userDetail: "CopilotUsageUserDetail"
+  };
+  var PERIODS = [30,60,90,180];
+  function suffixes(p){ return ["_D"+p, "_'D"+p+"'", "_"+p]; }
+  var LABELS = { byProduct:"Adoption by product", trend:"Adoption trend", userDetail:"Usage by user" };
+
+  // Apps tracked across the exports. `trend`/`prod` give the column prefix in
+  // the summary files; `det` is the per-user last-activity column in the detail
+  // export (null where the export has no matching column).
+  var APPS = [
+    {key:"Copilot Chat",                 short:"Copilot Chat", color:"var(--c1)",  det:"copilotChatLastActivityDate",      inProd:false},
+    {key:"Teams",                        short:"Teams",        color:"var(--c2)",  det:"microsoftTeamsCopilotLastActivityDate", inProd:true},
+    {key:"Outlook",                      short:"Outlook",      color:"var(--c6)",  det:"outlookCopilotLastActivityDate",   inProd:true},
+    {key:"Word",                         short:"Word",         color:"var(--c4)",  det:"wordCopilotLastActivityDate",      inProd:true},
+    {key:"Excel",                        short:"Excel",        color:"var(--c3)",  det:"excelCopilotLastActivityDate",     inProd:true},
+    {key:"PowerPoint",                   short:"PowerPoint",   color:"var(--c5)",  det:"powerPointCopilotLastActivityDate",inProd:true},
+    {key:"OneNote",                      short:"OneNote",      color:"var(--c7)",  det:"oneNoteCopilotLastActivityDate",   inProd:true},
+    {key:"Loop",                         short:"Loop",         color:"var(--c8)",  det:"loopCopilotLastActivityDate",      inProd:true},
+    {key:"Edge",                         short:"Edge",         color:"var(--muted)", det:null,                            inProd:true},
+    {key:"Microsoft 365 Copilot (app)",  short:"Copilot app",  color:"var(--accent)", det:null,                          inProd:true}
+  ];
+
+  var detectedPeriod = 0, detectedSuffix = "_D30";
+  var COLORS = ["var(--c1)","var(--c2)","var(--c3)","var(--c4)","var(--c5)","var(--c6)","var(--c7)","var(--c8)"];
+  var RAW = {}, DATA = {}, usrTbl = null, prodTbl = null;
+
+  /* ---------- helpers ---------- */
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
+  function num(v){ var n=parseFloat(v); return isFinite(n)?n:0; }
+  function fmt(n){ n=Math.round(n); return n.toLocaleString("en-US"); }
+  function fmtShort(n){
+    n=Math.round(n);
+    if(Math.abs(n)>=1e6) return (n/1e6).toFixed(n%1e6?1:0)+"M";
+    if(Math.abs(n)>=1e3) return (n/1e3).toFixed(n%1e3?1:0)+"k";
+    return String(n);
+  }
+  function pct(a,b){ return b? Math.round(a/b*1000)/10 : 0; }
+  function clip(s,n){ s=String(s); return s.length>n? s.slice(0,n-1)+"…" : s; }
+
+  /* ---------- floating tooltip (own element id so it never clashes with Viva) ---------- */
+  var Tip = {
+    el:null,
+    ensure:function(){
+      if(!this.el){ this.el=document.createElement("div"); this.el.id="cptip"; document.body.appendChild(this.el); }
+      return this.el;
+    },
+    show:function(html,x,y){
+      var e=this.ensure(); e.innerHTML=html; e.style.display="block";
+      var w=e.offsetWidth, h=e.offsetHeight, vw=window.innerWidth, vh=window.innerHeight;
+      var left=x+14, top=y+14;
+      if(left+w>vw-8) left=x-w-14; if(left<8) left=8;
+      if(top+h>vh-8) top=y-h-14; if(top<8) top=8;
+      e.style.left=left+"px"; e.style.top=top+"px";
+    },
+    hide:function(){ if(this.el) this.el.style.display="none"; }
+  };
+
+  /* ---------- robust CSV parser ---------- */
+  function parseCSV(text){
+    text = text.replace(/^﻿/,"");
+    var rows=[], row=[], field="", i=0, inQ=false, c, n=text.length;
+    for(; i<n; i++){
+      c=text[i];
+      if(inQ){
+        if(c==='"'){ if(text[i+1]==='"'){ field+='"'; i++; } else inQ=false; }
+        else field+=c;
+      } else {
+        if(c==='"') inQ=true;
+        else if(c===','){ row.push(field); field=""; }
+        else if(c==='\n'){ row.push(field); rows.push(row); row=[]; field=""; }
+        else if(c==='\r'){ /* skip */ }
+        else field+=c;
+      }
+    }
+    if(field.length||row.length){ row.push(field); rows.push(row); }
+    if(!rows.length) return {headers:[],rows:[]};
+    var headers=rows[0].map(function(h){return h.trim();});
+    var out=[];
+    for(var r=1;r<rows.length;r++){
+      if(rows[r].length===1 && rows[r][0]==="") continue;
+      var o={}; for(var k=0;k<headers.length;k++){ o[headers[k]]= rows[r][k]!==undefined? rows[r][k] : ""; }
+      out.push(o);
+    }
+    return {headers:headers, rows:out};
+  }
+
+  /* ---------- compute derived datasets ---------- */
+  function colEnabled(app){ return app+" Enabled Users"; }
+  function colActive(app){ return app+" Active Users"; }
+
+  function compute(){
+    /* Trend: one row per day. Each app contributes an enabled/active pair. */
+    var trend = RAW.trend.rows.map(function(r){
+      var o={ date:r["reportDate"]||r["Report Date"]||"", period:num(r["reportPeriod"]||r["Report Period"]),
+              allEnabled:num(r["All Enabled Users"]), allActive:num(r["All Active Users"]), app:{} };
+      APPS.forEach(function(a){ o.app[a.key]={ enabled:num(r[colEnabled(a.key)]), active:num(r[colActive(a.key)]) }; });
+      return o;
+    }).filter(function(r){return r.date;}).sort(function(a,b){return a.date<b.date?-1:1;});
+
+    /* By-product snapshot: the most recent (or only) row of the adoption export. */
+    var prodRow = RAW.byProduct.rows.length? RAW.byProduct.rows[RAW.byProduct.rows.length-1] : {};
+    var snapshot = APPS.map(function(a){
+      return { key:a.key, short:a.short, color:a.color,
+               enabled:num(prodRow[colEnabled(a.key)]), active:num(prodRow[colActive(a.key)]) };
+    }).filter(function(s){ return s.enabled>0 || s.active>0; });
+    var allEnabledSnap = num(prodRow["All Enabled Users"]);
+    var allActiveSnap  = num(prodRow["All Active Users"]);
+    var refresh = prodRow["Report Refresh Date"] || (RAW.trend.rows[0]&&RAW.trend.rows[0]["reportDate"]) || "";
+
+    /* Per-app average / peak daily active, from the trend file (clearly Copilot usage). */
+    var appStats = APPS.map(function(a){
+      var sum=0, peak=0, peakDate="";
+      trend.forEach(function(d){
+        var v=d.app[a.key].active; sum+=v;
+        if(v>peak){ peak=v; peakDate=d.date; }
+      });
+      return { key:a.key, short:a.short, color:a.color, det:a.det,
+               avg: trend.length? sum/trend.length : 0, peak:peak, peakDate:peakDate,
+               latest: trend.length? trend[trend.length-1].app[a.key].active : 0 };
+    });
+
+    /* All-active daily stats */
+    var allSum=0, allPeak=0, allPeakDate="";
+    trend.forEach(function(d){ allSum+=d.allActive; if(d.allActive>allPeak){ allPeak=d.allActive; allPeakDate=d.date; } });
+    var allAvg = trend.length? allSum/trend.length : 0;
+    var enabledLatest = trend.length? trend[trend.length-1].allEnabled : allEnabledSnap;
+
+    /* User detail: per-person last-activity dates */
+    var users = RAW.userDetail.rows.map(function(r){
+      var u={ name:r["displayName"]||r["userPrincipalName"]||"", upn:r["userPrincipalName"]||"",
+              last:r["lastActivityDate"]||"", app:{} };
+      APPS.forEach(function(a){ if(a.det) u.app[a.key]=r[a.det]||""; });
+      return u;
+    });
+    /* Reach by app = how many detailed users have any recorded activity in that app. */
+    var reach = APPS.filter(function(a){return a.det;}).map(function(a){
+      var c=0; users.forEach(function(u){ if(u.app[a.key]) c++; });
+      return { key:a.key, short:a.short, color:a.color, v:c };
+    });
+
+    var windowDays = (trend.length && trend[0].period) || num(prodRow["Report Period"]) || detectedPeriod || 30;
+    var dmin = trend.length? trend[0].date : "", dmax = trend.length? trend[trend.length-1].date : "";
+
+    DATA = {
+      trend:trend, snapshot:snapshot, appStats:appStats, reach:reach,
+      allEnabledSnap:allEnabledSnap, allActiveSnap:allActiveSnap,
+      enabledLatest:enabledLatest, allAvg:allAvg, allPeak:allPeak, allPeakDate:allPeakDate,
+      users:users, totalUsers:users.length,
+      refresh:refresh, windowDays:windowDays, period:{from:dmin,to:dmax}
+    };
+  }
+
+  /* ---------- line chart (geometry + SVG + hover) ---------- */
+  function lineGeom(data, opt){
+    opt=opt||{};
+    var W=opt.w||520, H=opt.h||190, pl=42, pr=12, pt=12, pb=26;
+    var iw=W-pl-pr, ih=H-pt-pb;
+    var vals=data.map(function(d){return d.v;});
+    var max=Math.max.apply(null,vals.concat([1])), min=0;
+    var n=data.length;
+    function X(i){ return pl + (n<=1?iw/2 : i/(n-1)*iw); }
+    function Y(v){ return pt + ih - (v-min)/(max-min||1)*ih; }
+    return {W:W,H:H,pl:pl,pr:pr,pt:pt,pb:pb,iw:iw,ih:ih,max:max,min:min,n:n,
+            X:X,Y:Y,color:opt.color||"var(--c1)",area:!!opt.area};
+  }
+  function lineSVG(data, g){
+    var W=g.W,H=g.H,pl=g.pl,pr=g.pr,n=g.n,max=g.max,color=g.color;
+    var area="", line="";
+    data.forEach(function(d,i){
+      var x=g.X(i),y=g.Y(d.v);
+      line += (i?"L":"M")+x.toFixed(1)+" "+y.toFixed(1)+" ";
+      area += (i?"L":"M")+x.toFixed(1)+" "+y.toFixed(1)+" ";
+    });
+    if(g.area && n){ area += "L"+g.X(n-1).toFixed(1)+" "+(g.pt+g.ih)+" L"+g.X(0).toFixed(1)+" "+(g.pt+g.ih)+" Z"; }
+    var dots="";
+    data.forEach(function(d,i){
+      var x=g.X(i),y=g.Y(d.v);
+      dots += '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="2.4" fill="'+color+'"></circle>';
+    });
+    var grid="", ylab="";
+    for(var q=0; q<=2; q++){
+      var v=max*q/2, y=g.Y(v);
+      grid += '<line x1="'+pl+'" y1="'+y.toFixed(1)+'" x2="'+(W-pr)+'" y2="'+y.toFixed(1)+'" stroke="var(--line)" stroke-width="1"/>';
+      ylab += '<text x="'+(pl-6)+'" y="'+(y+3).toFixed(1)+'" text-anchor="end" font-size="10" fill="var(--muted)">'+fmtShort(v)+'</text>';
+    }
+    var xl="";
+    [0, Math.floor((n-1)/2), n-1].forEach(function(i){
+      if(i<0||i>=n) return;
+      var lab=(data[i].label||"").slice(5);
+      xl += '<text x="'+g.X(i).toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle" font-size="10" fill="var(--muted)">'+esc(lab)+'</text>';
+    });
+    var uid="cg"+Math.random().toString(36).slice(2,8);
+    var fill = g.area? '<defs><linearGradient id="'+uid+'" x1="0" x2="0" y1="0" y2="1">'+
+      '<stop offset="0" stop-color="'+color+'" stop-opacity="0.28"/>'+
+      '<stop offset="1" stop-color="'+color+'" stop-opacity="0.02"/></linearGradient></defs>'+
+      '<path d="'+area+'" fill="url(#'+uid+')" stroke="none"/>' : "";
+    return '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="line chart" preserveAspectRatio="xMidYMid meet">'+
+      grid+ fill +
+      '<path d="'+line+'" fill="none" stroke="'+color+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'+
+      dots + ylab + xl + '</svg>';
+  }
+  function renderLine(el, data, opt){
+    opt=opt||{};
+    var g=lineGeom(data,opt);
+    el.innerHTML='<div class="chartbox">'+lineSVG(data,g)+
+      '<div class="crosshair"></div><div class="hoverdot"></div></div>';
+    var box=el.querySelector(".chartbox");
+    box._chart={ data:data, g:g, color:opt.color||"var(--c1)", title:opt.seriesLabel||"Value" };
+    attachLineHover(box);
+  }
+  function attachLineHover(box){
+    var ch=box.querySelector(".crosshair"), dot=box.querySelector(".hoverdot");
+    function move(e){
+      var c=box._chart, g=c.g, rect=box.getBoundingClientRect();
+      if(!rect.width || !g.n) return;
+      var s=rect.width/g.W;
+      var vx=(e.clientX-rect.left)/s;
+      var idx=Math.round((vx-g.pl)/(g.iw||1)*(g.n-1));
+      if(idx<0) idx=0; if(idx>g.n-1) idx=g.n-1;
+      var d=c.data[idx]; if(!d) return;
+      var px=g.X(idx)*s, py=g.Y(d.v)*s;
+      ch.style.display="block"; ch.style.left=px+"px";
+      dot.style.display="block"; dot.style.left=px+"px"; dot.style.top=py+"px";
+      var html='<div class="tt-title">'+esc(d.label||"")+'</div>'+
+        '<div class="tt-row"><span class="sw" style="background:'+c.color+'"></span>'+
+        '<span>'+esc(c.title)+'</span><span class="tt-val">'+fmt(d.v)+'</span></div>';
+      Tip.show(html, e.clientX, e.clientY);
+    }
+    function leave(){ ch.style.display="none"; dot.style.display="none"; Tip.hide(); }
+    box.addEventListener("mousemove", move);
+    box.addEventListener("mouseleave", leave);
+  }
+
+  /* ---------- bar + donut ---------- */
+  function hBarChart(items, opt){
+    opt=opt||{};
+    var rowH=opt.rowH||26, gap=8, pl=opt.labelW||180, pr=54;
+    var W=opt.w||520, H=items.length*(rowH+gap)+8;
+    var max=Math.max.apply(null, items.map(function(d){return d.v;}).concat([1]));
+    var iw=W-pl-pr;
+    var out='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="bar chart">';
+    items.forEach(function(d,i){
+      var y=i*(rowH+gap)+6, w=Math.max(2,(d.v/max)*iw);
+      var col=d.color||opt.color||COLORS[i%COLORS.length];
+      var vlabel=opt.fmt? opt.fmt(d.v) : fmtShort(d.v);
+      var tipv=opt.tipv? opt.tipv(d) : fmt(d.v);
+      out+='<rect x="'+pl+'" y="'+y+'" width="'+w.toFixed(1)+'" height="'+rowH+'" rx="5" fill="'+col+'"'+
+           ' data-tip="'+esc(d.label)+'" data-tipv="'+esc(tipv)+'" data-tipc="'+col+'"></rect>';
+      out+='<text x="'+(pl-8)+'" y="'+(y+rowH/2+4)+'" text-anchor="end" font-size="12" fill="var(--ink)">'+esc(opt.clip!==false? clip(d.label,26):d.label)+'</text>';
+      out+='<text x="'+(pl+w+7).toFixed(1)+'" y="'+(y+rowH/2+4)+'" font-size="11.5" fill="var(--muted)">'+esc(vlabel)+'</text>';
+    });
+    return out+'</svg>';
+  }
+  function donut(segs, opt){
+    opt=opt||{}; var size=opt.size||190, r=70, cx=size/2, cy=size/2, sw=26;
+    var total=segs.reduce(function(a,s){return a+s.v;},0)||1;
+    var circ=2*Math.PI*r, out='<svg viewBox="0 0 '+size+' '+size+'" role="img" aria-label="donut chart">';
+    out+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="var(--chip)" stroke-width="'+sw+'"/>';
+    var off=0;
+    segs.forEach(function(s,i){
+      var frac=s.v/total, len=frac*circ, col=s.color||COLORS[i%COLORS.length];
+      out+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+col+'" stroke-width="'+sw+
+           '" stroke-dasharray="'+len.toFixed(2)+' '+(circ-len).toFixed(2)+'" stroke-dashoffset="'+(-off).toFixed(2)+
+           '" transform="rotate(-90 '+cx+' '+cy+')"'+
+           ' data-tip="'+esc(s.label)+'" data-tipv="'+fmt(s.v)+' ('+pct(s.v,total)+'%)" data-tipc="'+col+'"></circle>';
+      off+=len;
+    });
+    out+='<text x="'+cx+'" y="'+(cy-2)+'" text-anchor="middle" font-size="22" font-weight="700" fill="var(--ink)">'+fmtShort(opt.center!=null?opt.center:total)+'</text>';
+    out+='<text x="'+cx+'" y="'+(cy+16)+'" text-anchor="middle" font-size="10.5" fill="var(--muted)">'+esc(opt.centerLabel||"")+'</text>';
+    return out+'</svg>';
+  }
+  function legend(items){
+    return items.map(function(s,i){
+      return '<span><i class="swatch" style="background:'+(s.color||COLORS[i%COLORS.length])+'"></i>'+esc(s.label)+'</span>';
+    }).join("");
+  }
+
+  /* ---------- resizable, sortable table (same engine as the Viva board) ---------- */
+  function addResizer(th, handle, table){
+    var startX=0, startW=0, active=false;
+    handle.addEventListener("pointerdown", function(e){
+      e.preventDefault(); e.stopPropagation();
+      active=true; startX=e.clientX; startW=th.getBoundingClientRect().width;
+      handle.classList.add("active"); table.classList.add("resizing");
+      try{ handle.setPointerCapture(e.pointerId); }catch(_){}
+    });
+    handle.addEventListener("pointermove", function(e){
+      if(!active) return;
+      var w=Math.max(48, startW+(e.clientX-startX));
+      th.style.width=w+"px"; th.style.minWidth=w+"px"; th.style.maxWidth=w+"px";
+    });
+    function end(e){
+      if(!active) return; active=false;
+      handle.classList.remove("active"); table.classList.remove("resizing");
+      try{ handle.releasePointerCapture(e.pointerId); }catch(_){}
+    }
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
+  }
+  function SortTable(tableEl, columns, opts){
+    this.table=tableEl; this.columns=columns; this.opts=opts||{};
+    this.sort=this.opts.initSort? {key:this.opts.initSort.key, dir:this.opts.initSort.dir} : {key:null,dir:-1};
+    this.built=false; this.thRow=null;
+  }
+  SortTable.prototype.buildHead=function(){
+    var self=this, thead=this.table.querySelector("thead");
+    this.table.classList.add("resizable");
+    var tr=document.createElement("tr");
+    this.columns.forEach(function(c){
+      var th=document.createElement("th");
+      if(c.num) th.classList.add("num");
+      if(c.sort!==false) th.classList.add("sortable");
+      th.dataset.k=c.k;
+      var lbl=document.createElement("span"); lbl.className="thlabel"; lbl.textContent=c.t;
+      th.appendChild(lbl);
+      if(c.sort!==false){
+        th.addEventListener("click", function(e){
+          if(e.target.classList.contains("col-resizer")) return;
+          self.clickSort(c);
+        });
+      }
+      var rz=document.createElement("div"); rz.className="col-resizer"; rz.title="Drag to resize";
+      th.appendChild(rz); addResizer(th, rz, self.table);
+      tr.appendChild(th);
+    });
+    thead.innerHTML=""; thead.appendChild(tr);
+    this.thRow=tr; this.built=true;
+  };
+  SortTable.prototype.clickSort=function(c){
+    if(this.sort.key===c.k) this.sort.dir*=-1;
+    else this.sort={key:c.k, dir:(c.sort==="string"?1:-1)};
+    this.render();
+  };
+  SortTable.prototype.syncAria=function(){
+    var self=this;
+    if(!this.thRow) return;
+    Array.prototype.forEach.call(this.thRow.querySelectorAll("th"), function(th){
+      if(th.dataset.k===self.sort.key) th.setAttribute("aria-sort", self.sort.dir<0?"descending":"ascending");
+      else th.removeAttribute("aria-sort");
+    });
+  };
+  SortTable.prototype.render=function(){
+    if(!this.built) this.buildHead();
+    var self=this, rows=this.opts.getRows()||[];
+    var k=this.sort.key;
+    if(k){
+      var col=null; this.columns.forEach(function(c){ if(c.k===k) col=c; });
+      var typ=col? col.sort : "number";
+      rows=rows.slice().sort(function(a,b){
+        var av=a[k], bv=b[k];
+        if(typ==="string"){
+          av=(av==null?"":String(av)).toLowerCase(); bv=(bv==null?"":String(bv)).toLowerCase();
+          return self.sort.dir*(av<bv?-1:av>bv?1:0);
+        }
+        return self.sort.dir*((+av||0)-(+bv||0));
+      });
+    }
+    var total=rows.length;
+    var max=this.opts.max||total;
+    var shown=rows.slice(0,max);
+    var tbody=this.table.querySelector("tbody");
+    tbody.innerHTML=shown.map(function(r){
+      return "<tr>"+self.columns.map(function(c){
+        var cell=c.render? c.render(r) : esc(r[c.k]);
+        return "<td"+(c.num?' class="num"':"")+">"+cell+"</td>";
+      }).join("")+"</tr>";
+    }).join("");
+    this.syncAria();
+    if(this.opts.onCount) this.opts.onCount(total, shown.length);
+  };
+
+  /* ---------- renderers ---------- */
+  function renderHeader(){
+    var p=DATA.period, wd=DATA.windowDays;
+    $("cpSubtitle").innerHTML = "Microsoft 365 Copilot adoption across The Mosaic Company &middot; rolling "+wd+"-day window";
+    var pills=[];
+    pills.push('<span class="pill">Window: '+wd+' days</span>');
+    if(p.from&&p.to) pills.push('<span class="pill">'+esc(p.from)+' to '+esc(p.to)+'</span>');
+    if(DATA.refresh) pills.push('<span class="pill">Data refreshed '+esc(DATA.refresh)+'</span>');
+    pills.push('<span class="pill">'+fmt(DATA.enabledLatest||DATA.allEnabledSnap)+' Copilot-enabled users</span>');
+    $("cpMetaPills").innerHTML=pills.join("");
+    $("cpFootNote").innerHTML = "Generated from Microsoft 365 Copilot usage exports &middot; "+wd+"-day window, "+esc(p.from)+" &ndash; "+esc(p.to)+
+      " &middot; the three exports use different definitions of “active” — each panel notes its source.";
+  }
+
+  function renderKpis(){
+    var d=DATA;
+    var enabled = d.enabledLatest || d.allEnabledSnap;
+    var winAdopt = pct(d.allActiveSnap, d.allEnabledSnap);
+    var top = d.appStats.slice().filter(function(a){return a.avg>0;}).sort(function(a,b){return b.avg-a.avg;})[0];
+    var chat = d.appStats.filter(function(a){return a.key==="Copilot Chat";})[0] || {peak:0,peakDate:""};
+    var cards=[
+      {h:"Copilot-enabled users", n:fmt(enabled), s:"licensed in this period", bar:100},
+      {h:"Active in window", n:fmt(d.allActiveSnap), s:winAdopt+"% of "+fmt(d.allEnabledSnap)+" enabled (any app)", bar:winAdopt},
+      {h:"Peak daily active", n:fmt(d.allPeak), s:d.allPeakDate?("on "+d.allPeakDate):"", bar:pct(d.allPeak,enabled)},
+      {h:"Avg daily active", n:fmt(d.allAvg), s:"across "+d.trend.length+" days", bar:pct(d.allAvg,enabled)},
+      {h:"Top Copilot app", n:top?top.short:"—", s:top?(fmt(top.avg)+" avg daily active"):"", bar:top?pct(top.avg,d.allAvg):0},
+      {h:"Copilot Chat", n:fmt(chat.peak), s:"peak daily active"+(chat.peakDate?(" · "+chat.peakDate):""), bar:pct(chat.peak,d.allPeak)}
+    ];
+    $("cpKpiRow").innerHTML = cards.map(function(c){
+      return '<div class="card kpi"><h3>'+esc(c.h)+'</h3><div class="num">'+esc(c.n)+'</div>'+
+        '<div class="sub">'+esc(c.s)+'</div><div class="bar"><span style="width:'+Math.min(100,c.bar)+'%"></span></div></div>';
+    }).join("");
+  }
+
+  function renderOverview(){
+    renderLine($("cpAllTrend"), DATA.trend.map(function(d){return {label:d.date,v:d.allActive};}),
+               {area:true,color:"var(--c1)",h:200,seriesLabel:"Active users"});
+    // Average daily active users per app (from the trend export = Copilot usage).
+    var bars=DATA.appStats.filter(function(a){return a.avg>0;}).sort(function(a,b){return b.avg-a.avg;})
+              .map(function(a){return {label:a.short,v:a.avg,color:a.color};});
+    $("cpByApp").innerHTML = hBarChart(bars,{labelW:120,fmt:function(v){return fmt(v);},
+      tipv:function(d){return fmt(d.v)+" avg / day";}});
+  }
+
+  function renderTrends(){
+    var series=[{el:"cpTrAll",key:"__all",color:"var(--c1)",label:"All active"}];
+    DATA.appStats.filter(function(a){return a.peak>0;}).forEach(function(a){
+      series.push({el:"cp_"+a.key, key:a.key, color:a.color, label:a.short});
+    });
+    // Build the per-app chart cards dynamically so we only show apps with data.
+    var host=$("cpTrendGrid");
+    host.innerHTML = series.map(function(s){
+      var note = s.key==="__all"? '<p class="cnote">unique people using any Copilot capability each day</p>' : '';
+      return '<div class="card chart-card"><p class="ctitle">'+esc(s.label)+'</p>'+note+'<div id="'+esc(s.el)+'"></div></div>';
+    }).join("");
+    series.forEach(function(s){
+      var data = DATA.trend.map(function(d){
+        return {label:d.date, v: s.key==="__all"? d.allActive : d.app[s.key].active};
+      });
+      renderLine($(s.el), data, {color:s.color, area:true, h:150, seriesLabel:s.label});
+    });
+  }
+
+  function buildProductTable(){
+    var cols=[
+      {k:"short", t:"Product", sort:"string", render:function(r){return '<span class="dot" style="background:'+r.color+'"></span>'+esc(r.short);}},
+      {k:"enabled", t:"Enabled", num:true, sort:"number", render:function(r){return fmt(r.enabled);}},
+      {k:"active", t:"Active", num:true, sort:"number", render:function(r){return fmt(r.active);}},
+      {k:"adoption", t:"Adoption", num:true, sort:"number", render:function(r){
+        var a=r.adoption; return '<div class="minibar"><span style="width:'+Math.min(100,a)+'%;background:'+r.color+'"></span></div><span class="mbv">'+a+'%</span>';}},
+      {k:"avgDaily", t:"Avg daily active", num:true, sort:"number", render:function(r){return fmt(r.avgDaily);}}
+    ];
+    prodTbl=new SortTable($("cpProdTable"), cols, {
+      initSort:{key:"active",dir:-1},
+      getRows:function(){
+        var statByKey={}; DATA.appStats.forEach(function(a){ statByKey[a.key]=a; });
+        return DATA.snapshot.map(function(s){
+          var st=statByKey[s.key]||{avg:0};
+          return { key:s.key, short:s.short, color:s.color, enabled:s.enabled, active:s.active,
+                   adoption:pct(s.active,s.enabled), avgDaily:st.avg };
+        });
+      },
+      onCount:function(total){ $("cpProdCount").textContent = total+" products"; }
+    });
+  }
+  function renderProducts(){
+    if(!prodTbl) buildProductTable();
+    prodTbl.render();
+    // adoption% bars per product (snapshot)
+    var bars=DATA.snapshot.map(function(s){return {label:s.short,v:pct(s.active,s.enabled),color:s.color};})
+              .sort(function(a,b){return b.v-a.v;});
+    $("cpAdoptBars").innerHTML = hBarChart(bars,{labelW:120,fmt:function(v){return v+"%";},
+      tipv:function(d){return d.v+"% adoption";}});
+  }
+
+  function buildUsersTable(){
+    var dcols=APPS.filter(function(a){return a.det;});
+    var cols=[
+      {k:"name", t:"Person", sort:"string", render:function(u){return esc(u.name);}},
+      {k:"last", t:"Last activity", sort:"string", render:function(u){return esc(u.last||"—");}}
+    ];
+    dcols.forEach(function(a){
+      cols.push({k:"d_"+a.key, t:a.short, sort:"string", render:function(u){
+        var v=u.app[a.key]; return v? esc(v) : '<span class="muted">—</span>';
+      }});
+    });
+    usrTbl=new SortTable($("cpUsrTable"), cols, {
+      initSort:{key:"last",dir:-1}, max:300,
+      getRows:function(){
+        var q=($("cpUsrSearch").value||"").toLowerCase().trim();
+        return DATA.users.filter(function(u){
+          if(!q) return true;
+          return u.name.toLowerCase().indexOf(q)>=0 || u.upn.toLowerCase().indexOf(q)>=0;
+        }).map(function(u){
+          // flatten per-app dates so the sort engine can read them by key
+          var o={name:u.name, upn:u.upn, last:u.last, app:u.app};
+          dcols.forEach(function(a){ o["d_"+a.key]=u.app[a.key]||""; });
+          return o;
+        });
+      },
+      onCount:function(total,shown){
+        $("cpUsrCount").textContent = fmt(total)+" people"+(total>shown?" (showing top "+shown+")":"");
+      }
+    });
+  }
+  function renderUsers(){
+    if(!usrTbl) buildUsersTable();
+    usrTbl.render();
+    var bars=DATA.reach.slice().sort(function(a,b){return b.v-a.v;})
+              .map(function(r){return {label:r.short,v:r.v,color:r.color};});
+    $("cpReachBars").innerHTML = hBarChart(bars,{labelW:120});
+    $("cpReachNote").textContent = "Based on the "+fmt(DATA.totalUsers)+" people in the per-user export. "+
+      "A person is counted for an app if the export records any Copilot activity there.";
+  }
+
+  function renderAll(){
+    compute();
+    renderHeader(); renderKpis(); renderOverview(); renderTrends();
+    renderProducts(); renderUsers();
+    $("cpStatus").classList.add("hidden");
+    $("cpDash").classList.remove("hidden");
+  }
+
+  /* ---------- tabs ---------- */
+  function initTabs(){
+    var nav=$("cpTabs"); if(!nav) return;
+    var btns=nav.querySelectorAll("button");
+    btns.forEach(function(b){
+      b.addEventListener("click",function(){
+        btns.forEach(function(x){x.setAttribute("aria-selected","false");});
+        b.setAttribute("aria-selected","true");
+        $("cp-app").querySelectorAll(".cp-tabpanel").forEach(function(p){p.classList.add("hidden");});
+        $("cptab-"+b.dataset.tab).classList.remove("hidden");
+      });
+    });
+  }
+  function initControls(){
+    $("cpUsrSearch").addEventListener("input",renderUsers);
+    $("cpReloadBtn").addEventListener("click",function(){ boot(true); });
+    // hover tooltips for bar/donut, scoped to the Copilot container
+    var root=$("cp-app")||document;
+    root.addEventListener("mousemove", function(e){
+      var t = e.target.closest && e.target.closest("[data-tip]");
+      if(t){
+        var title=esc(t.getAttribute("data-tip")||"");
+        var v=esc(t.getAttribute("data-tipv")||"");
+        var c=t.getAttribute("data-tipc")||"var(--c1)";
+        var html='<div class="tt-row"><span class="sw" style="background:'+c+'"></span>'+
+          '<span>'+title+'</span><span class="tt-val">'+v+'</span></div>';
+        Tip.show(html, e.clientX, e.clientY); return;
+      }
+      if(e.target.closest && e.target.closest(".chartbox")) return;
+      Tip.hide();
+    });
+  }
+
+  /* ---------- loading ---------- */
+  function fetchText(url){
+    return fetch(url,{cache:"no-store"}).then(function(res){
+      if(!res.ok) throw new Error(url+" ("+res.status+")");
+      return res.text();
+    });
+  }
+  // Probe period (30/60/90/180) x suffix style ( _D30 / _'D30' / _30 ) using the
+  // trend export, then load the matching by-product + user-detail files.
+  function fetchAll(){
+    detectedPeriod=0;
+    var combos=[];
+    PERIODS.forEach(function(p){ suffixes(p).forEach(function(sx){ combos.push({p:p,sx:sx}); }); });
+    var i=0;
+    function tryNext(){
+      if(i>=combos.length) return Promise.reject(new Error("No Copilot report files were found in this folder."));
+      var combo=combos[i++], sx=combo.sx;
+      return fetchText(FOLDER+BASES.trend+sx+".csv").then(function(txt){
+        detectedPeriod=combo.p; detectedSuffix=sx; RAW.trend=parseCSV(txt);
+        return Promise.all(["byProduct","userDetail"].map(function(k){
+          return fetchText(FOLDER+BASES[k]+sx+".csv").then(function(t){ RAW[k]=parseCSV(t); });
+        }));
+      }).catch(function(e){
+        if(detectedPeriod) throw e;  // window found but a sibling missing -> surface
+        return tryNext();
+      });
+    }
+    return tryNext();
+  }
+  function boot(isReload){
+    $("cpStatus").classList.remove("hidden");
+    $("cpLoadingBox").classList.remove("hidden");
+    $("cpFallbackBox").classList.add("hidden");
+    if(isReload) $("cpDash").classList.add("hidden");
+    fetchAll().then(function(){ renderAll(); }).catch(function(err){ showFallback(err); });
+  }
+
+  /* ---------- manual fallback (file:// or missing files) ---------- */
+  var fileMap = {};
+  function nameToKey(fn){
+    fn=fn.toLowerCase();
+    if(fn.indexOf("adoptionbyproduct")>=0) return "byProduct";
+    if(fn.indexOf("adoptiontrend")>=0)     return "trend";
+    if(fn.indexOf("usageuserdetail")>=0 || fn.indexOf("userdetail")>=0) return "userDetail";
+    return null;
+  }
+  function showFallback(){
+    $("cpLoadingBox").classList.add("hidden");
+    $("cpFallbackBox").classList.remove("hidden");
+    updateChecklist();
+  }
+  function updateChecklist(){
+    $("cpFileChecklist").innerHTML = Object.keys(LABELS).map(function(k){
+      var ok=!!fileMap[k];
+      return '<li class="'+(ok?"ok":"pending")+'">'+(ok?"✔":"○")+" "+esc(LABELS[k])+"</li>";
+    }).join("");
+  }
+  function ingestFiles(fileList){
+    var arr=Array.prototype.slice.call(fileList);
+    var jobs=arr.map(function(f){
+      var key=nameToKey(f.name);
+      if(!key) return Promise.resolve();
+      return f.text().then(function(txt){ fileMap[key]=parseCSV(txt); });
+    });
+    Promise.all(jobs).then(function(){
+      updateChecklist();
+      var need=["byProduct","trend","userDetail"];
+      var have=need.filter(function(k){return fileMap[k];});
+      if(have.length===need.length){ RAW=fileMap; renderAll(); }
+      else { $("cpFallbackErr").textContent = "Loaded "+have.length+" of 3 files. Please add the remaining "+(3-have.length)+"."; }
+    });
+  }
+  function initFallback(){
+    var dz=$("cpDropZone"), fi=$("cpFileInput");
+    dz.addEventListener("click",function(){ fi.click(); });
+    fi.addEventListener("change",function(){ ingestFiles(fi.files); });
+    ["dragover","dragenter"].forEach(function(ev){
+      dz.addEventListener(ev,function(e){ e.preventDefault(); dz.classList.add("drag"); });
+    });
+    ["dragleave","drop"].forEach(function(ev){
+      dz.addEventListener(ev,function(e){ e.preventDefault(); dz.classList.remove("drag"); });
+    });
+    dz.addEventListener("drop",function(e){
+      if(e.dataTransfer&&e.dataTransfer.files) ingestFiles(e.dataTransfer.files);
+    });
+  }
+
+  /* ---------- expose boot for the product switcher ---------- */
+  function init(){ initTabs(); initControls(); initFallback(); }
+  window.CopilotBoard = {
+    booted:false,
+    init:init,
+    // Boot exactly once, the first time the Copilot tab is opened. Re-selecting
+    // the tab must NOT re-run the loader, otherwise the "add the data files"
+    // panel reappears above an already-loaded dashboard. (Use the Refresh
+    // button to deliberately reload.)
+    boot:function(){ if(this.booted) return; this.booted=true; init(); boot(false); }
+  };
+})();
