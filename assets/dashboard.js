@@ -309,6 +309,15 @@
     handle.addEventListener("pointerdown", function(e){
       e.preventDefault(); e.stopPropagation();
       active=true; startX=e.clientX; startW=th.getBoundingClientRect().width;
+      // Freeze every other column to its current pixel width and let the table
+      // grow past its container, so widening one column scrolls (via the
+      // .tablewrap overflow) instead of squishing the rest.
+      Array.prototype.forEach.call(table.querySelectorAll("thead th"), function(h){
+        if(h===th) return;
+        var cw=h.getBoundingClientRect().width;
+        h.style.width=cw+"px"; h.style.minWidth=cw+"px"; h.style.maxWidth=cw+"px";
+      });
+      table.style.width="auto"; table.style.minWidth="100%";
       handle.classList.add("active"); table.classList.add("resizing");
       try{ handle.setPointerCapture(e.pointerId); }catch(_){}
     });
@@ -330,11 +339,18 @@
     this.table=tableEl; this.columns=columns; this.opts=opts||{};
     this.sort=this.opts.initSort? {key:this.opts.initSort.key, dir:this.opts.initSort.dir} : {key:null,dir:-1};
     this.built=false; this.thRow=null;
+    this.selectable=this.opts.selectable!==false;
+    this.selected={}; this.selOrder=[]; this.rowMap={}; this.cmpUI=null;
   }
   SortTable.prototype.buildHead=function(){
     var self=this, thead=this.table.querySelector("thead");
     this.table.classList.add("resizable");
     var tr=document.createElement("tr");
+    if(this.selectable){
+      var selTh=document.createElement("th");
+      selTh.className="selcol"; selTh.setAttribute("aria-label","Select");
+      tr.appendChild(selTh);
+    }
     this.columns.forEach(function(c){
       var th=document.createElement("th");
       if(c.num) th.classList.add("num");
@@ -352,6 +368,17 @@
       th.appendChild(rz); addResizer(th, rz, self.table);
       tr.appendChild(th);
     });
+    if(this.selectable){
+      var tb=this.table.querySelector("tbody");
+      if(tb && !tb._selWired){
+        tb._selWired=true;
+        tb.addEventListener("change", function(e){
+          var cb=e.target;
+          if(cb && cb.classList && cb.classList.contains("rowsel"))
+            self.toggle(cb.getAttribute("data-key"), cb.checked);
+        });
+      }
+    }
     thead.innerHTML=""; thead.appendChild(tr);
     this.thRow=tr; this.built=true;
   };
@@ -387,15 +414,86 @@
     var total=rows.length;
     var max=this.opts.max||total;
     var shown=rows.slice(0,max);
+    this.rowMap={}; rows.forEach(function(r){ self.rowMap[self.keyOf(r)]=r; });
     var tbody=this.table.querySelector("tbody");
     tbody.innerHTML=shown.map(function(r){
-      return "<tr>"+self.columns.map(function(c){
+      var key=self.keyOf(r), sel=self.selectable && !!self.selected[key];
+      var lead=self.selectable? '<td class="selcol"><input type="checkbox" class="rowsel"'+(sel?" checked":"")+' data-key="'+esc(key)+'"></td>' : "";
+      return "<tr"+(sel?' class="selrow"':"")+">"+lead+self.columns.map(function(c){
         var cell=c.render? c.render(r) : esc(r[c.k]);
         return "<td"+(c.num?' class="num"':"")+">"+cell+"</td>";
       }).join("")+"</tr>";
     }).join("");
     this.syncAria();
     if(this.opts.onCount) this.opts.onCount(total, shown.length);
+    if(this.selectable) this.renderCompareBar();
+  };
+
+  SortTable.prototype.keyOf=function(r){
+    var kf=this.opts.rowKey;
+    if(kf) return String(typeof kf==="function"? kf(r) : r[kf]);
+    var k0=this.columns[0].k;
+    return String(r[k0]==null?"":r[k0]);
+  };
+  SortTable.prototype.toggle=function(key, on){
+    if(on){ if(!this.selected[key]){ this.selected[key]=this.rowMap[key]||{}; this.selOrder.push(key); } }
+    else { delete this.selected[key]; var i=this.selOrder.indexOf(key); if(i>=0) this.selOrder.splice(i,1); }
+    this.render();
+  };
+  SortTable.prototype.ensureCompareUI=function(){
+    if(this.cmpUI) return this.cmpUI;
+    var self=this, wrap=this.table.closest? this.table.closest(".tablewrap") : null;
+    var anchor=wrap||this.table;
+    var bar=document.createElement("div"); bar.className="cmp-bar hidden";
+    var info=document.createElement("span"); info.className="cmp-info";
+    var go=document.createElement("button"); go.type="button"; go.className="btn ghost cmp-go"; go.textContent="Compare";
+    var clr=document.createElement("button"); clr.type="button"; clr.className="btn ghost cmp-clear"; clr.textContent="Clear";
+    bar.appendChild(info); bar.appendChild(go); bar.appendChild(clr);
+    var panel=document.createElement("div"); panel.className="cmp-panel hidden";
+    anchor.parentNode.insertBefore(bar, anchor.nextSibling);
+    bar.parentNode.insertBefore(panel, bar.nextSibling);
+    go.addEventListener("click", function(){ self.renderComparePanel(); });
+    clr.addEventListener("click", function(){ self.clearSelection(); });
+    this.cmpUI={bar:bar, info:info, panel:panel, go:go};
+    return this.cmpUI;
+  };
+  SortTable.prototype.renderCompareBar=function(){
+    if(!this.selectable) return;
+    var ui=this.ensureCompareUI(), n=this.selOrder.length;
+    if(n>0){
+      ui.bar.classList.remove("hidden");
+      ui.info.textContent=n+(n===1?" row selected":" rows selected");
+      ui.go.disabled=n<2; ui.go.textContent=n<2?"Select 2+ to compare":"Compare "+n;
+    } else {
+      ui.bar.classList.add("hidden"); ui.panel.classList.add("hidden");
+    }
+  };
+  SortTable.prototype.clearSelection=function(){
+    this.selected={}; this.selOrder=[];
+    if(this.cmpUI) this.cmpUI.panel.classList.add("hidden");
+    this.render();
+  };
+  SortTable.prototype.renderComparePanel=function(){
+    var self=this, ui=this.ensureCompareUI(), keys=this.selOrder.slice();
+    if(keys.length<2){ ui.panel.classList.add("hidden"); return; }
+    var rows=keys.map(function(k){ return self.selected[k]||self.rowMap[k]||{}; });
+    var head='<th class="cmp-field">Field</th>'+rows.map(function(r){
+      return "<th>"+esc(self.keyOf(r))+"</th>";
+    }).join("");
+    var body=this.columns.map(function(c){
+      var cells=rows.map(function(r){
+        var v=c.render? c.render(r) : esc(r[c.k]);
+        return "<td"+(c.num?' class="num"':"")+">"+v+"</td>";
+      }).join("");
+      return '<tr><td class="cmp-field">'+esc(c.t)+"</td>"+cells+"</tr>";
+    }).join("");
+    ui.panel.innerHTML='<div class="cmp-head"><strong>Comparison</strong>'+
+      '<button type="button" class="btn ghost cmp-close">Close</button></div>'+
+      '<div class="cmp-scroll"><table class="cmp-table"><thead><tr>'+head+
+      "</tr></thead><tbody>"+body+"</tbody></table></div>";
+    ui.panel.classList.remove("hidden");
+    var cl=ui.panel.querySelector(".cmp-close");
+    if(cl) cl.addEventListener("click", function(){ ui.panel.classList.add("hidden"); });
   };
 
   /* ---------- renderers ---------- */
@@ -680,7 +778,11 @@
     });
   }
 
-  /* ---------- init ---------- */
-  initTabs(); initControls(); initFallback();
-  boot(false);
+  /* ---------- init / expose boot for the product switcher ---------- */
+  function init(){ initTabs(); initControls(); initFallback(); }
+  window.VivaBoard = {
+    booted:false,
+    init:init,
+    boot:function(){ if(this.booted) return; this.booted=true; init(); boot(false); }
+  };
 })();

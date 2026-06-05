@@ -34,9 +34,27 @@
     {key:"Microsoft 365 Copilot (app)",  short:"Copilot app",  color:"var(--accent)", det:null,                          inProd:true}
   ];
 
+  // Columns in the richer per-user export (CopilotActivityUserDetail, no "EDP").
+  // When that file is loaded it overrides the basic usage export in the People
+  // tab: it carries prompt counts, active-usage days, and more app columns.
+  var RICH_APPS = [
+    {key:"Copilot Chat (work)", short:"Chat (work)",   color:"var(--c1)",     col:"Last activity date of Copilot Chat (work) (UTC)"},
+    {key:"Copilot Chat (web)",  short:"Chat (web)",    color:"var(--c1)",     col:"Last activity date of Copilot Chat (web) (UTC)"},
+    {key:"Teams",               short:"Teams",         color:"var(--c2)",     col:"Last activity date of Teams Copilot (UTC)"},
+    {key:"Outlook",             short:"Outlook",       color:"var(--c6)",     col:"Last activity date of Outlook Copilot (UTC)"},
+    {key:"Word",                short:"Word",          color:"var(--c4)",     col:"Last activity date of Word Copilot (UTC)"},
+    {key:"Excel",               short:"Excel",         color:"var(--c3)",     col:"Last activity date of Excel Copilot (UTC)"},
+    {key:"PowerPoint",          short:"PowerPoint",    color:"var(--c5)",     col:"Last activity date of PowerPoint Copilot (UTC)"},
+    {key:"OneNote",             short:"OneNote",       color:"var(--c7)",     col:"Last activity date of OneNote Copilot (UTC)"},
+    {key:"Loop",                short:"Loop",          color:"var(--c8)",     col:"Last activity date of Loop Copilot (UTC)"},
+    {key:"Copilot app",         short:"Copilot app",   color:"var(--accent)", col:"Last activity date of Microsoft 365 Copilot (app) (UTC)"},
+    {key:"Edge",                short:"Edge",          color:"var(--muted)",  col:"Last activity date of Edge (UTC)"},
+    {key:"Copilot Agent",       short:"Copilot Agent", color:"var(--c2)",     col:"Last activity date of Copilot Agent (UTC)"}
+  ];
+
   var detectedPeriod = 0, detectedSuffix = "_D30";
   var COLORS = ["var(--c1)","var(--c2)","var(--c3)","var(--c4)","var(--c5)","var(--c6)","var(--c7)","var(--c8)"];
-  var RAW = {}, DATA = {}, usrTbl = null, prodTbl = null;
+  var RAW = {}, DATA = {}, usrTbl = null, usrTblRich = null, prodTbl = null;
 
   /* ---------- helpers ---------- */
   function $(id){ return document.getElementById(id); }
@@ -141,15 +159,38 @@
     var allAvg = trend.length? allSum/trend.length : 0;
     var enabledLatest = trend.length? trend[trend.length-1].allEnabled : allEnabledSnap;
 
-    /* User detail: per-person last-activity dates */
-    var users = RAW.userDetail.rows.map(function(r){
-      var u={ name:r["displayName"]||r["userPrincipalName"]||"", upn:r["userPrincipalName"]||"",
-              last:r["lastActivityDate"]||"", app:{} };
-      APPS.forEach(function(a){ if(a.det) u.app[a.key]=r[a.det]||""; });
-      return u;
-    });
+    /* User detail: per-person last-activity dates. Two possible sources —
+       the richer CopilotActivityUserDetail export (prompt counts, active days,
+       more app columns) takes precedence over the basic usage export. */
+    var usersRich = !!RAW.userDetailV4, userApps, users, richStats=null;
+    if(usersRich){
+      userApps = RICH_APPS.map(function(a){ return {key:a.key, short:a.short, color:a.color}; });
+      users = RAW.userDetailV4.rows.map(function(r){
+        var u={ name:r["Display Name"]||r["User Principal Name"]||"",
+                upn:r["User Principal Name"]||"",
+                last:r["Last Activity Date"]||"",
+                prompts:num(r["Prompts submitted for All Apps"]),
+                promptsWork:num(r["Prompts submitted for Copilot Chat (work)"]),
+                promptsWeb:num(r["Prompts submitted for Copilot Chat (web)"]),
+                days:num(r["Active Usage Days for All Apps"]), app:{} };
+        RICH_APPS.forEach(function(a){ u.app[a.key]=r[a.col]||""; });
+        return u;
+      }).filter(function(u){ return u.name || u.upn; });
+      var tp=0, td=0, topU=null;
+      users.forEach(function(u){ tp+=u.prompts; td+=u.days; if(!topU||u.prompts>topU.prompts) topU=u; });
+      richStats = { totalPrompts:tp, avgPrompts: users.length? tp/users.length : 0,
+                    avgDays: users.length? td/users.length : 0, top:topU };
+    } else {
+      userApps = APPS.filter(function(a){return a.det;}).map(function(a){ return {key:a.key, short:a.short, color:a.color}; });
+      users = RAW.userDetail.rows.map(function(r){
+        var u={ name:r["displayName"]||r["userPrincipalName"]||"", upn:r["userPrincipalName"]||"",
+                last:r["lastActivityDate"]||"", prompts:0, days:0, app:{} };
+        APPS.forEach(function(a){ if(a.det) u.app[a.key]=r[a.det]||""; });
+        return u;
+      });
+    }
     /* Reach by app = how many detailed users have any recorded activity in that app. */
-    var reach = APPS.filter(function(a){return a.det;}).map(function(a){
+    var reach = userApps.map(function(a){
       var c=0; users.forEach(function(u){ if(u.app[a.key]) c++; });
       return { key:a.key, short:a.short, color:a.color, v:c };
     });
@@ -162,6 +203,7 @@
       allEnabledSnap:allEnabledSnap, allActiveSnap:allActiveSnap,
       enabledLatest:enabledLatest, allAvg:allAvg, allPeak:allPeak, allPeakDate:allPeakDate,
       users:users, totalUsers:users.length,
+      usersRich:usersRich, userApps:userApps, richStats:richStats,
       refresh:refresh, windowDays:windowDays, period:{from:dmin,to:dmax}
     };
   }
@@ -297,6 +339,15 @@
     handle.addEventListener("pointerdown", function(e){
       e.preventDefault(); e.stopPropagation();
       active=true; startX=e.clientX; startW=th.getBoundingClientRect().width;
+      // Freeze every other column to its current pixel width and let the table
+      // grow past its container, so widening one column scrolls (via the
+      // .tablewrap overflow) instead of squishing the rest.
+      Array.prototype.forEach.call(table.querySelectorAll("thead th"), function(h){
+        if(h===th) return;
+        var cw=h.getBoundingClientRect().width;
+        h.style.width=cw+"px"; h.style.minWidth=cw+"px"; h.style.maxWidth=cw+"px";
+      });
+      table.style.width="auto"; table.style.minWidth="100%";
       handle.classList.add("active"); table.classList.add("resizing");
       try{ handle.setPointerCapture(e.pointerId); }catch(_){}
     });
@@ -317,11 +368,18 @@
     this.table=tableEl; this.columns=columns; this.opts=opts||{};
     this.sort=this.opts.initSort? {key:this.opts.initSort.key, dir:this.opts.initSort.dir} : {key:null,dir:-1};
     this.built=false; this.thRow=null;
+    this.selectable=this.opts.selectable!==false;
+    this.selected={}; this.selOrder=[]; this.rowMap={}; this.cmpUI=null;
   }
   SortTable.prototype.buildHead=function(){
     var self=this, thead=this.table.querySelector("thead");
     this.table.classList.add("resizable");
     var tr=document.createElement("tr");
+    if(this.selectable){
+      var selTh=document.createElement("th");
+      selTh.className="selcol"; selTh.setAttribute("aria-label","Select");
+      tr.appendChild(selTh);
+    }
     this.columns.forEach(function(c){
       var th=document.createElement("th");
       if(c.num) th.classList.add("num");
@@ -339,6 +397,17 @@
       th.appendChild(rz); addResizer(th, rz, self.table);
       tr.appendChild(th);
     });
+    if(this.selectable){
+      var tb=this.table.querySelector("tbody");
+      if(tb && !tb._selWired){
+        tb._selWired=true;
+        tb.addEventListener("change", function(e){
+          var cb=e.target;
+          if(cb && cb.classList && cb.classList.contains("rowsel"))
+            self.toggle(cb.getAttribute("data-key"), cb.checked);
+        });
+      }
+    }
     thead.innerHTML=""; thead.appendChild(tr);
     this.thRow=tr; this.built=true;
   };
@@ -374,15 +443,86 @@
     var total=rows.length;
     var max=this.opts.max||total;
     var shown=rows.slice(0,max);
+    this.rowMap={}; rows.forEach(function(r){ self.rowMap[self.keyOf(r)]=r; });
     var tbody=this.table.querySelector("tbody");
     tbody.innerHTML=shown.map(function(r){
-      return "<tr>"+self.columns.map(function(c){
+      var key=self.keyOf(r), sel=self.selectable && !!self.selected[key];
+      var lead=self.selectable? '<td class="selcol"><input type="checkbox" class="rowsel"'+(sel?" checked":"")+' data-key="'+esc(key)+'"></td>' : "";
+      return "<tr"+(sel?' class="selrow"':"")+">"+lead+self.columns.map(function(c){
         var cell=c.render? c.render(r) : esc(r[c.k]);
         return "<td"+(c.num?' class="num"':"")+">"+cell+"</td>";
       }).join("")+"</tr>";
     }).join("");
     this.syncAria();
     if(this.opts.onCount) this.opts.onCount(total, shown.length);
+    if(this.selectable) this.renderCompareBar();
+  };
+
+  SortTable.prototype.keyOf=function(r){
+    var kf=this.opts.rowKey;
+    if(kf) return String(typeof kf==="function"? kf(r) : r[kf]);
+    var k0=this.columns[0].k;
+    return String(r[k0]==null?"":r[k0]);
+  };
+  SortTable.prototype.toggle=function(key, on){
+    if(on){ if(!this.selected[key]){ this.selected[key]=this.rowMap[key]||{}; this.selOrder.push(key); } }
+    else { delete this.selected[key]; var i=this.selOrder.indexOf(key); if(i>=0) this.selOrder.splice(i,1); }
+    this.render();
+  };
+  SortTable.prototype.ensureCompareUI=function(){
+    if(this.cmpUI) return this.cmpUI;
+    var self=this, wrap=this.table.closest? this.table.closest(".tablewrap") : null;
+    var anchor=wrap||this.table;
+    var bar=document.createElement("div"); bar.className="cmp-bar hidden";
+    var info=document.createElement("span"); info.className="cmp-info";
+    var go=document.createElement("button"); go.type="button"; go.className="btn ghost cmp-go"; go.textContent="Compare";
+    var clr=document.createElement("button"); clr.type="button"; clr.className="btn ghost cmp-clear"; clr.textContent="Clear";
+    bar.appendChild(info); bar.appendChild(go); bar.appendChild(clr);
+    var panel=document.createElement("div"); panel.className="cmp-panel hidden";
+    anchor.parentNode.insertBefore(bar, anchor.nextSibling);
+    bar.parentNode.insertBefore(panel, bar.nextSibling);
+    go.addEventListener("click", function(){ self.renderComparePanel(); });
+    clr.addEventListener("click", function(){ self.clearSelection(); });
+    this.cmpUI={bar:bar, info:info, panel:panel, go:go};
+    return this.cmpUI;
+  };
+  SortTable.prototype.renderCompareBar=function(){
+    if(!this.selectable) return;
+    var ui=this.ensureCompareUI(), n=this.selOrder.length;
+    if(n>0){
+      ui.bar.classList.remove("hidden");
+      ui.info.textContent=n+(n===1?" row selected":" rows selected");
+      ui.go.disabled=n<2; ui.go.textContent=n<2?"Select 2+ to compare":"Compare "+n;
+    } else {
+      ui.bar.classList.add("hidden"); ui.panel.classList.add("hidden");
+    }
+  };
+  SortTable.prototype.clearSelection=function(){
+    this.selected={}; this.selOrder=[];
+    if(this.cmpUI) this.cmpUI.panel.classList.add("hidden");
+    this.render();
+  };
+  SortTable.prototype.renderComparePanel=function(){
+    var self=this, ui=this.ensureCompareUI(), keys=this.selOrder.slice();
+    if(keys.length<2){ ui.panel.classList.add("hidden"); return; }
+    var rows=keys.map(function(k){ return self.selected[k]||self.rowMap[k]||{}; });
+    var head='<th class="cmp-field">Field</th>'+rows.map(function(r){
+      return "<th>"+esc(self.keyOf(r))+"</th>";
+    }).join("");
+    var body=this.columns.map(function(c){
+      var cells=rows.map(function(r){
+        var v=c.render? c.render(r) : esc(r[c.k]);
+        return "<td"+(c.num?' class="num"':"")+">"+v+"</td>";
+      }).join("");
+      return '<tr><td class="cmp-field">'+esc(c.t)+"</td>"+cells+"</tr>";
+    }).join("");
+    ui.panel.innerHTML='<div class="cmp-head"><strong>Comparison</strong>'+
+      '<button type="button" class="btn ghost cmp-close">Close</button></div>'+
+      '<div class="cmp-scroll"><table class="cmp-table"><thead><tr>'+head+
+      "</tr></thead><tbody>"+body+"</tbody></table></div>";
+    ui.panel.classList.remove("hidden");
+    var cl=ui.panel.querySelector(".cmp-close");
+    if(cl) cl.addEventListener("click", function(){ ui.panel.classList.add("hidden"); });
   };
 
   /* ---------- renderers ---------- */
@@ -481,18 +621,20 @@
   }
 
   function buildUsersTable(){
-    var dcols=APPS.filter(function(a){return a.det;});
-    var cols=[
-      {k:"name", t:"Person", sort:"string", render:function(u){return esc(u.name);}},
-      {k:"last", t:"Last activity", sort:"string", render:function(u){return esc(u.last||"—");}}
-    ];
+    var rich=DATA.usersRich, dcols=DATA.userApps;
+    var cols=[ {k:"name", t:"Person", sort:"string", render:function(u){return esc(u.name);}} ];
+    if(rich){
+      cols.push({k:"prompts", t:"Prompts", num:true, sort:"number", render:function(u){return fmt(u.prompts);}});
+      cols.push({k:"days", t:"Active days", num:true, sort:"number", render:function(u){return fmt(u.days);}});
+    }
+    cols.push({k:"last", t:"Last activity", sort:"string", render:function(u){return esc(u.last||"—");}});
     dcols.forEach(function(a){
       cols.push({k:"d_"+a.key, t:a.short, sort:"string", render:function(u){
         var v=u.app[a.key]; return v? esc(v) : '<span class="muted">—</span>';
       }});
     });
     usrTbl=new SortTable($("cpUsrTable"), cols, {
-      initSort:{key:"last",dir:-1}, max:300,
+      initSort:{key: rich?"prompts":"last", dir:-1}, max:300,
       getRows:function(){
         var q=($("cpUsrSearch").value||"").toLowerCase().trim();
         return DATA.users.filter(function(u){
@@ -500,7 +642,7 @@
           return u.name.toLowerCase().indexOf(q)>=0 || u.upn.toLowerCase().indexOf(q)>=0;
         }).map(function(u){
           // flatten per-app dates so the sort engine can read them by key
-          var o={name:u.name, upn:u.upn, last:u.last, app:u.app};
+          var o={name:u.name, upn:u.upn, last:u.last, prompts:u.prompts||0, days:u.days||0, app:u.app};
           dcols.forEach(function(a){ o["d_"+a.key]=u.app[a.key]||""; });
           return o;
         });
@@ -510,9 +652,30 @@
       }
     });
   }
+  function renderPeopleKpis(){
+    var host=$("cpPeopleKpis"); if(!host) return;
+    if(!DATA.usersRich || !DATA.richStats){ host.classList.add("hidden"); host.innerHTML=""; return; }
+    var s=DATA.richStats;
+    var cards=[
+      {h:"People in report", n:fmt(DATA.totalUsers), s:"from the detailed per-user export"},
+      {h:"Total prompts", n:fmt(s.totalPrompts), s:"submitted across all apps"},
+      {h:"Avg prompts / person", n:fmt(s.avgPrompts), s:"mean over the window"},
+      {h:"Avg active days", n:fmt(s.avgDays), s:"per person, all apps"},
+      {h:"Most active", n:s.top?clip(s.top.name,18):"—", s:s.top?(fmt(s.top.prompts)+" prompts"):""}
+    ];
+    host.innerHTML = cards.map(function(c){
+      return '<div class="card kpi"><h3>'+esc(c.h)+'</h3><div class="num">'+esc(c.n)+'</div>'+
+        '<div class="sub">'+esc(c.s)+'</div></div>';
+    }).join("");
+    host.classList.remove("hidden");
+  }
   function renderUsers(){
-    if(!usrTbl) buildUsersTable();
+    // Column layout differs between the basic and richer exports; rebuild the
+    // table if the source kind changed (e.g. after a Refresh with a new file).
+    if(usrTbl && usrTblRich!==DATA.usersRich){ usrTbl=null; }
+    if(!usrTbl){ buildUsersTable(); usrTblRich=DATA.usersRich; }
     usrTbl.render();
+    renderPeopleKpis();
     var bars=DATA.reach.slice().sort(function(a,b){return b.v-a.v;})
               .map(function(r){return {label:r.short,v:r.v,color:r.color};});
     $("cpReachBars").innerHTML = hBarChart(bars,{labelW:120});
@@ -604,7 +767,12 @@
     fn=fn.toLowerCase();
     if(fn.indexOf("adoptionbyproduct")>=0) return "byProduct";
     if(fn.indexOf("adoptiontrend")>=0)     return "trend";
-    if(fn.indexOf("usageuserdetail")>=0 || fn.indexOf("userdetail")>=0) return "userDetail";
+    // The richer per-user export — "CopilotActivityUserDetail" (no "EDP") — takes
+    // precedence over the basic usage export. The EDP "ActivityUserDetail" file
+    // also matches "activityuserdetail" but carries the "edp" marker and belongs
+    // to the optional Copilot Chat set, so route it to CopilotExtras instead.
+    if(fn.indexOf("activityuserdetail")>=0 && fn.indexOf("edp")<0) return "userDetailV4";
+    if(fn.indexOf("usageuserdetail")>=0 || (fn.indexOf("userdetail")>=0 && fn.indexOf("activityuserdetail")<0)) return "userDetail";
     return null;
   }
   function showFallback(){
@@ -612,13 +780,33 @@
     $("cpFallbackBox").classList.remove("hidden");
     updateChecklist();
   }
+  // Optional Copilot Chat / Agents exports — handled by CopilotExtras, never
+  // required to render the core board. Labels mirror its checklists.
+  var OPTIONAL = [
+    {k:"declAgents",  label:"Declarative agents — 30-day usage"},
+    {k:"agents",      label:"All agents — inventory"},
+    {k:"chatAdopt",   label:"Copilot Chat — adoption by app"},
+    {k:"chatPrompts", label:"Copilot Chat — prompts submitted by app"},
+    {k:"chatUsers",   label:"Copilot Chat — end-user usage details"}
+  ];
   function updateChecklist(){
-    $("cpFileChecklist").innerHTML = Object.keys(LABELS).map(function(k){
-      var ok=!!fileMap[k];
-      return '<li class="'+(ok?"ok":"pending")+'">'+(ok?"✔":"○")+" "+esc(LABELS[k])+"</li>";
+    var st = (window.CopilotExtras && window.CopilotExtras.status) ? window.CopilotExtras.status() : {};
+    var req = Object.keys(LABELS).map(function(k){
+      var ok = k==="userDetail" ? !!(fileMap.userDetail||fileMap.userDetailV4) : !!fileMap[k];
+      return '<li class="'+(ok?"ok":"pending")+'">'+(ok?"✔":"○")+" "+esc(LABELS[k])+'<span class="muted"> &middot; required</span></li>';
     }).join("");
+    var opt = OPTIONAL.map(function(o){
+      var ok=!!st[o.k];
+      return '<li class="'+(ok?"ok":"pending")+'">'+(ok?"✔":"○")+" "+esc(o.label)+'<span class="muted"> &middot; optional</span></li>';
+    }).join("");
+    $("cpFileChecklist").innerHTML = req + opt;
   }
   function ingestFiles(fileList){
+    // Forward everything to the extras module too; it picks out the optional
+    // Agents / Copilot Chat exports and ignores the rest.
+    var extra = (window.CopilotExtras && window.CopilotExtras.ingest)
+      ? window.CopilotExtras.ingest(fileList) : Promise.resolve();
+    extra.then(updateChecklist);
     var arr=Array.prototype.slice.call(fileList);
     var jobs=arr.map(function(f){
       var key=nameToKey(f.name);
@@ -627,10 +815,12 @@
     });
     Promise.all(jobs).then(function(){
       updateChecklist();
-      var need=["byProduct","trend","userDetail"];
-      var have=need.filter(function(k){return fileMap[k];});
-      if(have.length===need.length){ RAW=fileMap; renderAll(); }
-      else { $("cpFallbackErr").textContent = "Loaded "+have.length+" of 3 files. Please add the remaining "+(3-have.length)+"."; }
+      // The People tab accepts either per-user export; userDetailV4 (the richer
+      // CopilotActivityUserDetail) satisfies the same slot as the basic file.
+      var need=[ !!fileMap.byProduct, !!fileMap.trend, !!(fileMap.userDetail||fileMap.userDetailV4) ];
+      var have=need.filter(function(ok){return ok;}).length;
+      if(have===3){ RAW=fileMap; renderAll(); }
+      else { $("cpFallbackErr").textContent = "Loaded "+have+" of 3 required files. Please add the remaining "+(3-have)+"."; }
     });
   }
   function initFallback(){

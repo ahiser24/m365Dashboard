@@ -214,3 +214,75 @@ header.app.cp{background:linear-gradient(120deg,#7a3a8f,#a83279)}
 #cptip .tt-row{display:flex; align-items:center; gap:7px; white-space:nowrap}
 #cptip .tt-row .sw{width:9px; height:9px; border-radius:3px; display:inline-block; flex:none}
 #cptip .tt-row .tt-val{margin-inline-start:auto; font-variant-numeric:tabular-nums; font-weight:600}
+
+/* ===================== Home chooser + Teams additions ===================== */
+
+/* switcher dots for the new tabs */
+.sw-dot.home{background:linear-gradient(120deg,var(--c2),var(--c6))}
+.sw-dot.teams{background:#5b5fc7}
+
+/* ---- Home / app chooser landing ---- */
+header.app.home{background:linear-gradient(120deg,#3a4a63,#5566a3)}
+.chooser{margin-top:20px}
+.choice-grid{
+  display:grid; gap:18px;
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+}
+.choice{
+  text-align:left; cursor:pointer; display:flex; flex-direction:column; gap:8px;
+  background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:22px 20px;
+  transition:border-color .15s, transform .15s, box-shadow .15s;
+}
+.choice:hover{transform:translateY(-2px); box-shadow:0 6px 22px rgba(16,33,48,.12)}
+.choice-mark{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:48px; height:48px; border-radius:12px; flex:none;
+  color:#fff; font-weight:700; font-size:15px; letter-spacing:.5px;
+}
+.choice-mark.viva{background:linear-gradient(120deg,#0b6e4f,#13a06f)}
+.choice-mark.copilot{background:linear-gradient(120deg,#7a3a8f,#a83279)}
+.choice-mark.teams{background:linear-gradient(120deg,#4b53bc,#5b5fc7)}
+.choice-title{font-size:18px; font-weight:700; color:var(--ink)}
+.choice-desc{font-size:13.5px; color:var(--muted); line-height:1.5}
+.choice-cta{margin-top:auto; font-size:13px; font-weight:600; color:var(--accent)}
+.choice:hover .choice-cta{color:var(--brand)}
+
+/* ---- Teams pane: indigo accent so it reads apart from Viva/Copilot ---- */
+#tm-app{
+  --brand:#4b53bc; --brand2:#5b5fc7;
+}
+header.app.tm{background:linear-gradient(120deg,#4b53bc,#5b5fc7)}
+
+/* Teams floating tooltip (mirrors #tip) */
+#tmtip{position:fixed; z-index:9999; pointer-events:none; display:none; max-width:260px;
+  background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:10px;
+  box-shadow:var(--shadow); padding:8px 11px; font-size:12.5px; line-height:1.4}
+#tmtip .tt-title{font-weight:700; margin-bottom:3px; font-size:12.5px}
+#tmtip .tt-row{display:flex; align-items:center; gap:7px; white-space:nowrap}
+#tmtip .tt-row .sw{width:9px; height:9px; border-radius:3px; display:inline-block; flex:none}
+#tmtip .tt-row .tt-val{margin-inline-start:auto; font-variant-numeric:tabular-nums; font-weight:600}
+
+/* ---- Multi-row selection + side-by-side comparison (shared by all tables) ---- */
+th.selcol, td.selcol{width:34px; min-width:34px; text-align:center; padding-inline:6px}
+td.selcol input.rowsel{cursor:pointer; width:15px; height:15px; accent-color:var(--brand)}
+tr.selrow td{background:color-mix(in srgb, var(--brand) 9%, var(--panel))}
+.cmp-bar{display:flex; align-items:center; gap:10px; margin-top:10px; padding:9px 12px;
+  background:var(--panel); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow)}
+.cmp-bar.hidden{display:none}
+.cmp-info{font-size:13px; font-weight:600; color:var(--ink)}
+.cmp-bar .btn.cmp-go{margin-inline-start:auto}
+.cmp-panel{margin-top:10px; background:var(--panel); border:1px solid var(--line);
+  border-radius:var(--radius); box-shadow:var(--shadow); padding:14px 16px}
+.cmp-panel.hidden{display:none}
+.cmp-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px}
+.cmp-head strong{font-size:15px; color:var(--ink)}
+.cmp-scroll{overflow:auto; max-height:520px}
+table.cmp-table{border-collapse:collapse; width:100%; font-size:13px}
+table.cmp-table th, table.cmp-table td{border:1px solid var(--line); padding:7px 11px; text-align:left;
+  white-space:nowrap; vertical-align:top}
+table.cmp-table thead th{position:sticky; top:0; background:var(--panel); font-weight:700; z-index:1}
+table.cmp-table td.num{text-align:right; font-variant-numeric:tabular-nums}
+table.cmp-table .cmp-field{position:sticky; left:0; background:var(--panel); font-weight:600;
+  color:var(--muted); z-index:2}
+table.cmp-table thead .cmp-field{z-index:3}
