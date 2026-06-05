@@ -613,13 +613,6 @@
         tmDropdown.classList.toggle("show");
       });
     }
-    var tmRefFolder = $("tmRefreshFolder");
-    if(tmRefFolder){
-      tmRefFolder.addEventListener("click", function(){
-        tmDropdown.classList.remove("show");
-        boot(true);
-      });
-    }
     var tmUpReplace = $("tmUploadReplace");
     if(tmUpReplace){
       tmUpReplace.addEventListener("click", function(){

@@ -763,13 +763,6 @@
         cpDropdown.classList.toggle("show");
       });
     }
-    var cpRefFolder = $("cpRefreshFolder");
-    if(cpRefFolder){
-      cpRefFolder.addEventListener("click", function(){
-        cpDropdown.classList.remove("show");
-        boot(true);
-      });
-    }
     var cpUpReplace = $("cpUploadReplace");
     if(cpUpReplace){
       cpUpReplace.addEventListener("click", function(){

@@ -712,13 +712,6 @@
         rDropdown.classList.toggle("show");
       });
     }
-    var vRefFolder = $("vivaRefreshFolder");
-    if(vRefFolder){
-      vRefFolder.addEventListener("click", function(){
-        rDropdown.classList.remove("show");
-        boot(true);
-      });
-    }
     var vUpReplace = $("vivaUploadReplace");
     if(vUpReplace){
       vUpReplace.addEventListener("click", function(){
