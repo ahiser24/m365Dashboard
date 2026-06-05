@@ -683,12 +683,15 @@
       "A person is counted for an app if the export records any Copilot activity there.";
   }
 
+  var hasData = false;
+
   function renderAll(){
     compute();
     renderHeader(); renderKpis(); renderOverview(); renderTrends();
     renderProducts(); renderUsers();
     $("cpStatus").classList.add("hidden");
     $("cpDash").classList.remove("hidden");
+    hasData = true;
   }
 
   /* ---------- tabs ---------- */
@@ -704,9 +707,90 @@
       });
     });
   }
+
+  function openUploader(){
+    $("cpStatus").classList.remove("hidden");
+    $("cpLoadingBox").classList.add("hidden");
+    $("cpFallbackBox").classList.remove("hidden");
+    $("cpDash").classList.add("hidden");
+    updateChecklist();
+    toggleBack();
+  }
+
+  function backToReports(){
+    if(!hasData) return;
+    $("cpStatus").classList.add("hidden");
+    $("cpFallbackBox").classList.add("hidden");
+    $("cpDash").classList.remove("hidden");
+  }
+
+  function toggleBack(){
+    var b=$("cpBackBtn"); if(!b) return;
+    if(hasData) b.classList.remove("hidden"); else b.classList.add("hidden");
+  }
+
+  function clearData(){
+    RAW = {};
+    DATA = {};
+    fileMap = {};
+    hasData = false;
+    usrTbl = null;
+    usrTblRich = null;
+    prodTbl = null;
+    if(window.CopilotExtras && window.CopilotExtras.clear){
+      window.CopilotExtras.clear();
+    }
+    updateChecklist();
+    toggleBack();
+    $("cpStatus").classList.remove("hidden");
+    $("cpLoadingBox").classList.add("hidden");
+    $("cpFallbackBox").classList.remove("hidden");
+    $("cpDash").classList.add("hidden");
+  }
+
   function initControls(){
     $("cpUsrSearch").addEventListener("input",renderUsers);
-    $("cpReloadBtn").addEventListener("click",function(){ boot(true); });
+    
+    // Wire up dropdown controls
+    var cpBtn = $("cpReloadBtn");
+    var cpDropdown = $("cpReloadDropdown");
+    if(cpBtn && cpDropdown){
+      cpBtn.addEventListener("click", function(e){
+        e.stopPropagation();
+        Array.prototype.forEach.call(document.querySelectorAll(".refresh-dropdown"), function(d){
+          if(d !== cpDropdown) d.classList.remove("show");
+        });
+        cpDropdown.classList.toggle("show");
+      });
+    }
+    var cpRefFolder = $("cpRefreshFolder");
+    if(cpRefFolder){
+      cpRefFolder.addEventListener("click", function(){
+        cpDropdown.classList.remove("show");
+        boot(true);
+      });
+    }
+    var cpUpReplace = $("cpUploadReplace");
+    if(cpUpReplace){
+      cpUpReplace.addEventListener("click", function(){
+        cpDropdown.classList.remove("show");
+        openUploader();
+      });
+    }
+    var cpClearData = $("cpClearData");
+    if(cpClearData){
+      cpClearData.addEventListener("click", function(){
+        cpDropdown.classList.remove("show");
+        if(confirm("Are you sure you want to clear all loaded data? This will reset the dashboard.")){
+          clearData();
+        }
+      });
+    }
+    var cpBack = $("cpBackBtn");
+    if(cpBack){
+      cpBack.addEventListener("click", backToReports);
+    }
+
     // hover tooltips for bar/donut, scoped to the Copilot container
     var root=$("cp-app")||document;
     root.addEventListener("mousemove", function(e){
@@ -779,6 +863,7 @@
     $("cpLoadingBox").classList.add("hidden");
     $("cpFallbackBox").classList.remove("hidden");
     updateChecklist();
+    toggleBack();
   }
   // Optional Copilot Chat / Agents exports — handled by CopilotExtras, never
   // required to render the core board. Labels mirror its checklists.

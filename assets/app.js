@@ -55,6 +55,16 @@
     wire("appChooser");
     var home=$("homeLink");
     if(home) home.addEventListener("click", function(){ show("home"); });
+    
+    // Global click listener to close dropdowns
+    document.addEventListener("click", function(e){
+      if(!e.target.closest(".refresh-dropdown-container")){
+        Array.prototype.forEach.call(document.querySelectorAll(".refresh-dropdown"), function(d){
+          d.classList.remove("show");
+        });
+      }
+    });
+
     show("home");
   }
 

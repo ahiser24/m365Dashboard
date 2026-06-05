@@ -637,12 +637,15 @@
     $("dvDonutLegend").innerHTML=legend(donutSegs);
   }
 
+  var hasData = false;
+
   function renderAll(){
     compute();
     renderHeader(); renderKpis(); renderOverview(); renderTrends();
     renderGroups(); renderUsers(); renderDevices();
     $("status").classList.add("hidden");
     $("dash").classList.remove("hidden");
+    hasData = true;
   }
 
   /* ---------- tabs ---------- */
@@ -657,12 +660,86 @@
       });
     });
   }
+  
+  function openUploader(){
+    $("status").classList.remove("hidden");
+    $("loadingBox").classList.add("hidden");
+    $("fallbackBox").classList.remove("hidden");
+    $("dash").classList.add("hidden");
+    updateChecklist();
+    toggleBack();
+  }
+  function backToReports(){
+    if(!hasData) return;
+    $("status").classList.add("hidden");
+    $("fallbackBox").classList.add("hidden");
+    $("dash").classList.remove("hidden");
+  }
+  function toggleBack(){
+    var b=$("vivaBackBtn"); if(!b) return;
+    if(hasData) b.classList.remove("hidden"); else b.classList.add("hidden");
+  }
+  function clearData(){
+    RAW = {};
+    DATA = {};
+    fileMap = {};
+    hasData = false;
+    grpTbl = null;
+    usrTbl = null;
+    updateChecklist();
+    toggleBack();
+    $("status").classList.remove("hidden");
+    $("loadingBox").classList.add("hidden");
+    $("fallbackBox").classList.remove("hidden");
+    $("dash").classList.add("hidden");
+  }
+
   function initControls(){
     ["grpSearch","grpType","grpActiveOnly"].forEach(function(id){
       $(id).addEventListener("input",renderGroups); $(id).addEventListener("change",renderGroups);
     });
     $("usrSearch").addEventListener("input",renderUsers);
-    $("reloadBtn").addEventListener("click",function(){ boot(true); });
+    
+    // Wire up dropdown controls
+    var rBtn = $("reloadBtn");
+    var rDropdown = $("reloadDropdown");
+    if(rBtn && rDropdown){
+      rBtn.addEventListener("click", function(e){
+        e.stopPropagation();
+        Array.prototype.forEach.call(document.querySelectorAll(".refresh-dropdown"), function(d){
+          if(d !== rDropdown) d.classList.remove("show");
+        });
+        rDropdown.classList.toggle("show");
+      });
+    }
+    var vRefFolder = $("vivaRefreshFolder");
+    if(vRefFolder){
+      vRefFolder.addEventListener("click", function(){
+        rDropdown.classList.remove("show");
+        boot(true);
+      });
+    }
+    var vUpReplace = $("vivaUploadReplace");
+    if(vUpReplace){
+      vUpReplace.addEventListener("click", function(){
+        rDropdown.classList.remove("show");
+        openUploader();
+      });
+    }
+    var vClearData = $("vivaClearData");
+    if(vClearData){
+      vClearData.addEventListener("click", function(){
+        rDropdown.classList.remove("show");
+        if(confirm("Are you sure you want to clear all loaded data? This will reset the dashboard.")){
+          clearData();
+        }
+      });
+    }
+    var vBack = $("vivaBackBtn");
+    if(vBack){
+      vBack.addEventListener("click", backToReports);
+    }
+
     // chart hover for bar/donut via data-tip delegation.
     // Scoped to the Viva container so it never fires over the Copilot section
     // (both dashboards share one page in the combined app).
@@ -738,6 +815,7 @@
     $("loadingBox").classList.add("hidden");
     $("fallbackBox").classList.remove("hidden");
     updateChecklist();
+    toggleBack();
   }
   function updateChecklist(){
     $("fileChecklist").innerHTML = Object.keys(LABELS).map(function(k){

@@ -527,23 +527,23 @@
   }
   function rerender(){
     if(RAW.declAgents) renderDecl();
+    else { $("cpxDeclWrap").classList.add("hidden"); }
     if(RAW.agents) renderAll();
+    else { $("cpxAllWrap").classList.add("hidden"); }
     if(RAW.chatAdopt || RAW.chatPrompts) renderChatTop();
+    else { $("cpxChatTopWrap").classList.add("hidden"); }
     if(RAW.chatUsers) renderChatUsers();
+    else { $("cpxChatUsersWrap").classList.add("hidden"); }
     updateChecklists();
-    // Once a tab has any of its files, collapse the drop panel (like the main
-    // board does on full load) and expose a small "Add / replace files" button.
-    setLoadVisible("agents", !(RAW.declAgents || RAW.agents));
-    setLoadVisible("chat",   !(RAW.chatAdopt || RAW.chatPrompts || RAW.chatUsers));
-  }
-  // Toggle a per-tab upload panel and its reveal button. show=true keeps the
-  // drop panel visible (no data yet); show=false collapses it behind the button.
-  function setLoadVisible(which, show){
-    var load=$("cpx"+(which==="agents"?"Agents":"Chat")+"Load");
-    var btn=$("cpx"+(which==="agents"?"Agents":"Chat")+"Reveal");
-    if(!load||!btn) return;
-    if(show){ load.classList.remove("hidden"); btn.classList.add("hidden"); }
-    else { load.classList.add("hidden"); btn.classList.remove("hidden"); }
+
+    var hasAgents = !!(RAW.declAgents || RAW.agents);
+    var hasChat = !!(RAW.chatAdopt || RAW.chatPrompts || RAW.chatUsers);
+
+    var agentPlaceholder = $("cpxAgentsPlaceholder");
+    if(agentPlaceholder) agentPlaceholder.classList.toggle("hidden", hasAgents);
+
+    var chatPlaceholder = $("cpxChatPlaceholder");
+    if(chatPlaceholder) chatPlaceholder.classList.toggle("hidden", hasChat);
   }
   function ingest(fileList){
     var arr=Array.prototype.slice.call(fileList);
@@ -600,10 +600,6 @@
   }
   function init(){
     if(!$("cptab-agents")) return;   // panels not on the page
-    makeReveal("agents","↻ Add / replace agent files");
-    makeReveal("chat","↻ Add / replace Copilot Chat files");
-    wireDrop("cpxAgentsZone","cpxAgentsInput");
-    wireDrop("cpxChatZone","cpxChatInput");
     ["cpxDeclSearch","cpxAllSearch"].forEach(function(id){
       var el=$(id); if(el) el.addEventListener("input",function(){
         if(id==="cpxDeclSearch" && TBL.decl) TBL.decl.render();
@@ -622,6 +618,12 @@
              chatAdopt:!!RAW.chatAdopt, chatPrompts:!!RAW.chatPrompts, chatUsers:!!RAW.chatUsers };
   }
 
+  function clear(){
+    RAW = {};
+    TBL = {};
+    rerender();
+  }
+
   // expose for diagnostics / optional external boot
-  window.CopilotExtras = { ingest:ingest, rerender:rerender, status:status };
+  window.CopilotExtras = { ingest:ingest, rerender:rerender, status:status, clear:clear };
 })();

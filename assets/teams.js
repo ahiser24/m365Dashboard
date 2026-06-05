@@ -583,10 +583,60 @@
       });
     });
   }
+  function clearData(){
+    RAW = {};
+    DATA = {};
+    fileMap = {};
+    hasData = false;
+    usrTbl = null;
+    updateChecklist();
+    toggleBack();
+    $("tmStatus").classList.remove("hidden");
+    $("tmLoadingBox").classList.add("hidden");
+    $("tmFallbackBox").classList.remove("hidden");
+    $("tmDash").classList.add("hidden");
+  }
+
   function initControls(){
     $("tmUsrSearch").addEventListener("input",renderUsers);
     $("tmActiveOnly").addEventListener("change",renderUsers);
-    $("tmReloadBtn").addEventListener("click",openUploader);
+    
+    // Wire up dropdown controls
+    var tmBtn = $("tmReloadBtn");
+    var tmDropdown = $("tmReloadDropdown");
+    if(tmBtn && tmDropdown){
+      tmBtn.addEventListener("click", function(e){
+        e.stopPropagation();
+        Array.prototype.forEach.call(document.querySelectorAll(".refresh-dropdown"), function(d){
+          if(d !== tmDropdown) d.classList.remove("show");
+        });
+        tmDropdown.classList.toggle("show");
+      });
+    }
+    var tmRefFolder = $("tmRefreshFolder");
+    if(tmRefFolder){
+      tmRefFolder.addEventListener("click", function(){
+        tmDropdown.classList.remove("show");
+        boot(true);
+      });
+    }
+    var tmUpReplace = $("tmUploadReplace");
+    if(tmUpReplace){
+      tmUpReplace.addEventListener("click", function(){
+        tmDropdown.classList.remove("show");
+        openUploader();
+      });
+    }
+    var tmClearData = $("tmClearData");
+    if(tmClearData){
+      tmClearData.addEventListener("click", function(){
+        tmDropdown.classList.remove("show");
+        if(confirm("Are you sure you want to clear all loaded data? This will reset the dashboard.")){
+          clearData();
+        }
+      });
+    }
+
     var bb=$("tmBackBtn"); if(bb) bb.addEventListener("click",backToReports);
     // hover tooltips for bar/donut, scoped to the Teams container
     var root=$("tm-app")||document;
