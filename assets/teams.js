@@ -17,6 +17,7 @@
   var detectedPeriod = 0;
   var COLORS = ["var(--c1)","var(--c2)","var(--c3)","var(--c4)","var(--c5)","var(--c6)","var(--c7)","var(--c8)"];
   var RAW = {}, DATA = {}, usrTbl = null;
+  var hasData = false;   // true once a dashboard has rendered (enables "Back to current reports")
 
   /* ---------- helpers ---------- */
   function $(id){ return document.getElementById(id); }
@@ -543,6 +544,30 @@
     renderMeetings(); renderMessaging(); renderUsers();
     $("tmStatus").classList.add("hidden");
     $("tmDash").classList.remove("hidden");
+    hasData = true;
+  }
+
+  /* ---------- add/replace files via the header Refresh button ---------- */
+  // Reveal the upload panel without discarding the rendered dashboard or the
+  // already-loaded files. When data is present we also expose a "Back" button so
+  // a mis-click can return to the current reports without re-uploading.
+  function openUploader(){
+    $("tmStatus").classList.remove("hidden");
+    $("tmLoadingBox").classList.add("hidden");
+    $("tmFallbackBox").classList.remove("hidden");
+    $("tmDash").classList.add("hidden");
+    updateChecklist();
+    toggleBack();
+  }
+  function backToReports(){
+    if(!hasData) return;
+    $("tmStatus").classList.add("hidden");
+    $("tmFallbackBox").classList.add("hidden");
+    $("tmDash").classList.remove("hidden");
+  }
+  function toggleBack(){
+    var b=$("tmBackBtn"); if(!b) return;
+    if(hasData) b.classList.remove("hidden"); else b.classList.add("hidden");
   }
 
   /* ---------- tabs ---------- */
@@ -561,7 +586,8 @@
   function initControls(){
     $("tmUsrSearch").addEventListener("input",renderUsers);
     $("tmActiveOnly").addEventListener("change",renderUsers);
-    $("tmReloadBtn").addEventListener("click",function(){ boot(true); });
+    $("tmReloadBtn").addEventListener("click",openUploader);
+    var bb=$("tmBackBtn"); if(bb) bb.addEventListener("click",backToReports);
     // hover tooltips for bar/donut, scoped to the Teams container
     var root=$("tm-app")||document;
     root.addEventListener("mousemove", function(e){
@@ -621,6 +647,7 @@
     $("tmLoadingBox").classList.add("hidden");
     $("tmFallbackBox").classList.remove("hidden");
     updateChecklist();
+    toggleBack();
   }
   function updateChecklist(){
     var ok=!!fileMap.detail;
