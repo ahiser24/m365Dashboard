@@ -21,7 +21,7 @@ All data processing is done entirely in your browser. No files or metrics are up
 ## 📂 Project Structure
 
 ```
-├── M365_Adoption_Dashboard.html  # Main application entry point
+├── index.html                  # Main application entry point
 ├── Get-M365UsageReports.ps1      # PowerShell script for M365 Graph API report downloads
 ├── assets/                       # Client-side style and logic modules
 │   ├── app.js                    # Application hub and lazy-loader
@@ -83,7 +83,7 @@ Microsoft Copilot reports that cannot be retrieved via the API script must be do
 
 ### 2. Loading the Dashboard
 
-1.  Open M365_Adoption_Dashboard.html directly in any modern web browser.
+1.  Open index.html directly in any modern web browser.
 2.  Select the dashboard you want to view (Viva Engage, Microsoft Copilot, or Microsoft Teams).
 3.  Drag and drop the exported CSV files into the drop zone, or click the upload area to select them.
     *   *Tip*: You can find pre-formatted mock data in the `Sample Reports` directory to test the features immediately.
