@@ -208,6 +208,10 @@ function Invoke-CopilotReports {
     $formatted3 | Export-Csv (Join-Path $OutputPath "CopilotUsageUserDetail_$Period.csv") -NoTypeInformation
 
     Write-Host "✅ Copilot reports exported to: $OutputPath" -ForegroundColor Green
+
+    # --- Cleanup JSON files after CSV export ---
+    Get-ChildItem -Path $OutputPath -Filter 'Copilot*.json' -File | Remove-Item -Force -ErrorAction SilentlyContinue
+    Write-Host " 🧹 Copilot JSON files removed" -ForegroundColor DarkGray
 }
 
 #endregion

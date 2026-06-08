@@ -1,594 +1,754 @@
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
+
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
-<title>Microsoft 365 Adoption Board</title>
-<link rel="stylesheet" href="assets/dashboard.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Microsoft 365 Adoption Board</title>
+  <link rel="stylesheet" href="assets/dashboard.css">
 </head>
+
 <body>
-<div class="wrap">
+  <div class="wrap">
 
-  <!-- App navigation bar -->
-  <div class="appbar">
-    <div class="appbar-brand" id="homeLink" title="Back to app chooser">
-      <span class="appbar-mark" aria-hidden="true">M365</span>
-      <div>
-        <div class="appbar-title">Microsoft 365 Adoption Board</div>
-        <div class="appbar-sub">Usage Reports Analysis &middot; Andrew Hiser</div>
-      </div>
-    </div>
-    <div style="display:flex; align-items:center; gap:12px;">
-      <div class="switcher" id="productSwitch" role="tablist" aria-label="Choose a Microsoft 365 app">
-        <button role="tab" data-product="home" aria-selected="true">
-          <span class="sw-dot home" aria-hidden="true"></span> Home
-        </button>
-        <button role="tab" data-product="viva" aria-selected="false">
-          <span class="sw-dot viva" aria-hidden="true"></span> Viva Engage
-        </button>
-        <button role="tab" data-product="copilot" aria-selected="false">
-          <span class="sw-dot copilot" aria-hidden="true"></span> Microsoft Copilot
-        </button>
-        <button role="tab" data-product="teams" aria-selected="false">
-          <span class="sw-dot teams" aria-hidden="true"></span> Microsoft Teams
-        </button>
-      </div>
-      <button id="themeToggle" class="btn ghost" title="Toggle theme">
-        <span class="theme-icon">☀️</span>
-      </button>
-    </div>
-  </div>
-
-  <!-- Home landing page & dashboard chooser -->
-  <div id="home-app" class="product-pane">
-    <header class="app home">
-      <div class="titles">
-        <h1>Microsoft 365 Adoption Board</h1>
-        <p>Choose an application to get started, then upload your usage report(s). Your data stays on your machine - nothing is uploaded anywhere.</p>
-      </div>
-    </header>
-
-    <div class="chooser">
-      <div class="choice-grid" id="appChooser">
-        <button class="choice" data-product="viva">
-          <span class="choice-mark viva" aria-hidden="true">VE</span>
-          <span class="choice-title">Viva Engage</span>
-          <span class="choice-desc">Community engagement - daily reads, posts and reactions, the participation ladder, communities, people, and device usage.</span>
-          <span class="choice-cta">Navigate to Viva Dashboard &rarr;</span>
-        </button>
-        <button class="choice" data-product="copilot">
-          <span class="choice-mark copilot" aria-hidden="true">CP</span>
-          <span class="choice-title">Microsoft Copilot</span>
-          <span class="choice-desc">Copilot adoption - daily active users, average active by app, adoption by product, and per-person last-activity dates.</span>
-          <span class="choice-cta">Navigate to Copilot Dashboard &rarr;</span>
-        </button>
-        <button class="choice" data-product="teams">
-          <span class="choice-mark teams" aria-hidden="true">TM</span>
-          <span class="choice-title">Microsoft Teams</span>
-          <span class="choice-desc">Teams usage - active users, meetings, calls, chat and channel messaging, communication time, and a per-person breakdown.</span>
-          <span class="choice-cta">Navigate to Teams Dashboard &rarr;</span>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Viva Engage section -->
-  <div id="viva-app" class="product-pane hidden">
-
-    <header class="app">
-      <div class="titles">
-        <h1>Viva Engage Adoption Board</h1>
-        <p id="subtitle">Leadership view of community engagement &middot; loading data&hellip;</p>
-      </div>
-      <div class="meta-pills" id="metaPills"></div>
-      <div class="refresh-dropdown-container">
-        <button class="btn" id="reloadBtn" title="Options to refresh, upload, or clear data">&#x21bb; Refresh data</button>
-        <div class="refresh-dropdown" id="reloadDropdown">
-          <button id="vivaUploadReplace">&#x21ea; Upload / Replace files</button>
-          <button id="vivaClearData" class="danger">&#x1f5d1; Clear all data</button>
+    <!-- App navigation bar -->
+    <div class="appbar">
+      <div class="appbar-brand" id="homeLink" title="Back to app chooser">
+        <span class="appbar-mark" aria-hidden="true">M365</span>
+        <div>
+          <div class="appbar-title">Microsoft 365 Adoption Board</div>
+          <div class="appbar-sub">Usage Reports Analysis &middot; Andrew Hiser</div>
         </div>
       </div>
-    </header>
-
-    <!-- Fallback screen shown if data is missing or needs to be uploaded -->
-    <div id="status">
-      <div class="loadbox" id="loadingBox">
-        <div class="spinner"></div>
-        <h2>Loading adoption data&hellip;</h2>
-        <p class="muted">Reading the five Viva Engage reports from this folder.</p>
-      </div>
-
-      <div class="loadbox hidden" id="fallbackBox">
-        <h2>Add the data files to view the board</h2>
-        <p>This board reads the five Viva Engage CSV exports listed below. When the page is opened directly from your
-           computer, browsers block automatic file access for security - so drop the five files below to
-           load them. Your data stays on your machine; nothing is uploaded anywhere.</p>
-        <div class="drop" id="dropZone">
-          <strong>Drop the 5 CSV files here</strong> or click to choose them
-          <input type="file" id="fileInput" accept=".csv" multiple class="hidden">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div class="switcher" id="productSwitch" role="tablist" aria-label="Choose a Microsoft 365 app">
+          <button role="tab" data-product="home" aria-selected="true">
+            <span class="sw-dot home" aria-hidden="true"></span> Home
+          </button>
+          <button role="tab" data-product="viva" aria-selected="false">
+            <span class="sw-dot viva" aria-hidden="true"></span> Viva Engage
+          </button>
+          <button role="tab" data-product="copilot" aria-selected="false">
+            <span class="sw-dot copilot" aria-hidden="true"></span> Microsoft Copilot
+          </button>
+          <button role="tab" data-product="teams" aria-selected="false">
+            <span class="sw-dot teams" aria-hidden="true"></span> Microsoft Teams
+          </button>
         </div>
-        <ul class="filechecklist" id="fileChecklist"></ul>
-        <p class="err" id="fallbackErr"></p>
-        <div style="margin-top: 16px;">
-          <button class="btn ghost hidden" id="vivaBackBtn">&larr; Back to dashboard</button>
+        <button id="themeToggle" class="btn ghost" title="Toggle theme">
+          <span class="theme-icon">☀️</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Home landing page & dashboard chooser -->
+    <div id="home-app" class="product-pane">
+      <header class="app home">
+        <div class="titles">
+          <h1>Microsoft 365 Adoption Board</h1>
+          <p>Choose an application to get started, then upload your usage report(s). Your data stays on your machine -
+            nothing is uploaded anywhere.</p>
+        </div>
+      </header>
+
+      <div class="chooser">
+        <div class="choice-grid" id="appChooser">
+          <button class="choice" data-product="viva">
+            <span class="choice-mark viva" aria-hidden="true">VE</span>
+            <span class="choice-title">Viva Engage</span>
+            <span class="choice-desc">Community engagement - daily reads, posts and reactions, the participation ladder,
+              communities, people, and device usage.</span>
+            <span class="choice-cta">Navigate to Viva Dashboard &rarr;</span>
+          </button>
+          <button class="choice" data-product="copilot">
+            <span class="choice-mark copilot" aria-hidden="true">CP</span>
+            <span class="choice-title">Microsoft Copilot</span>
+            <span class="choice-desc">Copilot adoption - daily active users, average active by app, adoption by product,
+              and per-person last-activity dates.</span>
+            <span class="choice-cta">Navigate to Copilot Dashboard &rarr;</span>
+          </button>
+          <button class="choice" data-product="teams">
+            <span class="choice-mark teams" aria-hidden="true">TM</span>
+            <span class="choice-title">Microsoft Teams</span>
+            <span class="choice-desc">Teams usage - active users, meetings, calls, chat and channel messaging,
+              communication time, and a per-person breakdown.</span>
+            <span class="choice-cta">Navigate to Teams Dashboard &rarr;</span>
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- Main dashboard content -->
-    <div id="dash" class="hidden">
-      <nav class="tabs" id="tabs" role="tablist">
-        <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
-        <button role="tab" data-tab="trends" aria-selected="false">Trends</button>
-        <button role="tab" data-tab="communities" aria-selected="false">Communities</button>
-        <button role="tab" data-tab="contributors" aria-selected="false">People</button>
-        <button role="tab" data-tab="devices" aria-selected="false">Devices</button>
-      </nav>
+    <!-- Viva Engage section -->
+    <div id="viva-app" class="product-pane hidden">
 
-      <section id="tab-overview" class="tabpanel">
-        <div class="grid kpis" id="kpiRow"></div>
-
-        <div class="grid two section">
-          <div class="card chart-card">
-            <p class="ctitle">Daily reads</p>
-            <p class="cnote">Total posts read across all communities each day. Regular dips fall on weekends.</p>
-            <div id="ovReads"></div>
-          </div>
-          <div class="card">
-            <h3>Participation ladder</h3>
-            <p class="lede" id="funnelLede">How many unique users read, react, and create over the reporting window.</p>
-            <div class="funnel" id="funnel"></div>
+      <header class="app">
+        <div class="titles">
+          <h1>Viva Engage Adoption Board</h1>
+          <p id="subtitle">Leadership view of community engagement &middot; loading data&hellip;</p>
+        </div>
+        <div class="meta-pills" id="metaPills"></div>
+        <div class="refresh-dropdown-container">
+          <button class="btn" id="reloadBtn" title="Options to refresh, upload, or clear data">&#x21bb; Refresh
+            data</button>
+          <div class="refresh-dropdown" id="reloadDropdown">
+            <button id="vivaUploadReplace">&#x21ea; Upload / Replace files</button>
+            <button id="vivaClearData" class="danger">&#x1f5d1; Clear all data</button>
           </div>
         </div>
+      </header>
 
-        <div class="grid two section">
-          <div class="card chart-card">
-            <p class="ctitle">Top communities by reads</p>
-            <p class="cnote">Most-read communities in the period.</p>
-            <div id="ovTopGroups"></div>
+      <!-- Fallback screen shown if data is missing or needs to be uploaded -->
+      <div id="status">
+        <div class="loadbox" id="loadingBox">
+          <div class="spinner"></div>
+          <h2>Loading adoption data&hellip;</h2>
+          <p class="muted">Reading the five Viva Engage reports from this folder.</p>
+        </div>
+
+        <div class="loadbox hidden" id="fallbackBox">
+          <h2>Add the data files to view the board</h2>
+          <p>This board reads the five Viva Engage CSV exports listed below. When the page is opened directly from your
+            computer, browsers block automatic file access for security - so drop the five files below to
+            load them. Your data stays on your machine; nothing is uploaded anywhere.</p>
+          <div class="drop" id="dropZone">
+            <strong>Drop the 5 CSV files here</strong> or click to choose them
+            <input type="file" id="fileInput" accept=".csv" multiple class="hidden">
           </div>
-          <div class="card chart-card">
-            <p class="ctitle">How people access Viva Engage</p>
-            <p class="cnote">Share of active users by device type (users can appear in more than one).</p>
-            <div id="ovDevices"></div>
-            <div class="legend" id="ovDevLegend"></div>
+          <ul class="filechecklist" id="fileChecklist"></ul>
+          <p class="err" id="fallbackErr"></p>
+          <div style="margin-top: 16px;">
+            <button class="btn ghost hidden" id="vivaBackBtn">&larr; Back to dashboard</button>
           </div>
-        </div>
-      </section>
-
-      <section id="tab-trends" class="tabpanel hidden">
-        <div class="section">
-          <h2>Activity trends</h2>
-          <p class="lede">Daily totals (left) and the number of unique people taking each action (right). Weekend troughs are normal.</p>
-        </div>
-        <div class="grid three">
-          <div class="card chart-card"><p class="ctitle">Reads - total</p><div id="trReadTot"></div></div>
-          <div class="card chart-card"><p class="ctitle">Posts - total</p><div id="trPostTot"></div></div>
-          <div class="card chart-card"><p class="ctitle">Likes - total</p><div id="trLikeTot"></div></div>
-          <div class="card chart-card"><p class="ctitle">Active readers</p><p class="cnote">unique people reading</p><div id="trReadU"></div></div>
-          <div class="card chart-card"><p class="ctitle">Active posters</p><p class="cnote">unique people posting</p><div id="trPostU"></div></div>
-          <div class="card chart-card"><p class="ctitle">Active likers</p><p class="cnote">unique people reacting</p><div id="trLikeU"></div></div>
-        </div>
-      </section>
-
-      <section id="tab-communities" class="tabpanel hidden">
-        <div class="section"><h2>Communities</h2>
-          <p class="lede">Every community with activity in the period. Sort any column; drag a column edge to resize; search by name or owner.</p></div>
-        <div class="controls">
-          <input type="search" id="grpSearch" placeholder="Search community or owner&hellip;">
-          <select id="grpType"><option value="">All types</option><option value="public">Public</option><option value="private">Private</option></select>
-          <label><input type="checkbox" id="grpActiveOnly"> Active only</label>
-          <span class="rowcount" id="grpCount"></span>
-        </div>
-        <div class="tablewrap"><table id="grpTable"><thead></thead><tbody></tbody></table></div>
-      </section>
-
-      <section id="tab-contributors" class="tabpanel hidden">
-        <div class="section"><h2>People</h2>
-          <p class="lede">Engaged users ranked by activity. Click any column heading to sort; drag a column edge to resize; search to find anyone.</p></div>
-        <div class="controls">
-          <input type="search" id="usrSearch" placeholder="Search person&hellip;">
-          <span class="rowcount" id="usrCount"></span>
-        </div>
-        <div class="tablewrap"><table id="usrTable"><thead></thead><tbody></tbody></table></div>
-      </section>
-
-      <section id="tab-devices" class="tabpanel hidden">
-        <div class="section"><h2>Device usage</h2>
-          <p class="lede">Platforms active users rely on. A single person may use several.</p></div>
-        <div class="grid two">
-          <div class="card chart-card"><p class="ctitle">Users by platform</p>
-            <p class="cnote">Users are counted for each platform they accessed (e.g., Web, Teams, mobile apps). A single user can appear in multiple categories if they used more than one access method, so totals will exceed the number of unique users.</p>
-            <div id="dvBars"></div></div>
-          <div class="card chart-card"><p class="ctitle">Web vs. mobile access</p>
-            <p class="cnote">Each user is counted once and categorized based on their activity across all devices. “Used mobile” includes anyone who accessed Viva Engage from a mobile or integrated app (e.g., Teams or mobile devices) at least once. “Web only” represents users who accessed Viva Engage exclusively through a browser</p>
-            <div id="dvDonut"></div><div class="legend" id="dvDonutLegend"></div></div>
-        </div>
-      </section>
-    </div>
-
-    <footer class="app">
-      <span id="footNote"></span>
-    </footer>
-  </div>
-
-  <!-- Microsoft Copilot section -->
-  <div id="cp-app" class="product-pane hidden">
-
-    <header class="app cp">
-      <div class="titles">
-        <h1>Microsoft 365 Copilot Adoption Board</h1>
-        <p id="cpSubtitle">Leadership view of Copilot adoption &middot; loading data&hellip;</p>
-      </div>
-      <div class="meta-pills" id="cpMetaPills"></div>
-      <div class="refresh-dropdown-container">
-        <button class="btn" id="cpReloadBtn" title="Options to refresh, upload, or clear data">&#x21bb; Refresh data</button>
-        <div class="refresh-dropdown" id="cpReloadDropdown">
-          <button id="cpUploadReplace">&#x21ea; Upload / Replace files</button>
-          <button id="cpClearData" class="danger">&#x1f5d1; Clear all data</button>
         </div>
       </div>
-    </header>
 
-    <!-- Fallback screen for uploading Copilot reports -->
-    <div id="cpStatus">
-      <div class="loadbox" id="cpLoadingBox">
-        <div class="spinner"></div>
-        <h2>Loading Copilot data&hellip;</h2>
-        <p class="muted">Reading the three Microsoft 365 Copilot usage reports from this folder.</p>
-      </div>
+      <!-- Main dashboard content -->
+      <div id="dash" class="hidden">
+        <nav class="tabs" id="tabs" role="tablist">
+          <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+          <button role="tab" data-tab="trends" aria-selected="false">Trends</button>
+          <button role="tab" data-tab="communities" aria-selected="false">Communities</button>
+          <button role="tab" data-tab="contributors" aria-selected="false">People</button>
+          <button role="tab" data-tab="devices" aria-selected="false">Devices</button>
+        </nav>
 
-      <div class="loadbox hidden" id="cpFallbackBox">
-        <h2>Add the data files to view the board</h2>
-        <p>This board reads three required Microsoft 365 Copilot usage exports, plus up to five optional
-           reports (Agents and Copilot Chat) that unlock the extra tabs - eight files in all. When the page
-           is opened directly from your computer, browsers block automatic file access for security, so drop
-           the files below to load them. Drop all of them at once; the optional ones can be added anytime.
-           Your data stays on your machine; nothing is uploaded anywhere.</p>
-        <div class="drop" id="cpDropZone">
-          <strong>Drop your CSV files here</strong> or click to choose them
-          <span class="cnote">3 required &middot; 5 optional</span>
-          <input type="file" id="cpFileInput" accept=".csv" multiple class="hidden">
-        </div>
-        <ul class="filechecklist" id="cpFileChecklist"></ul>
-        <p class="err" id="cpFallbackErr"></p>
-        <div style="margin-top: 16px;">
-          <button class="btn ghost hidden" id="cpBackBtn">&larr; Back to dashboard</button>
-        </div>
-      </div>
-    </div>
+        <section id="tab-overview" class="tabpanel">
+          <div class="grid kpis" id="kpiRow"></div>
 
-    <!-- Main dashboard content -->
-    <div id="cpDash" class="hidden">
-      <nav class="tabs" id="cpTabs" role="tablist">
-        <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
-        <button role="tab" data-tab="trends" aria-selected="false">Trends</button>
-        <button role="tab" data-tab="products" aria-selected="false">By product</button>
-        <button role="tab" data-tab="people" aria-selected="false">People</button>
-        <button role="tab" data-tab="agents" aria-selected="false">Agents</button>
-        <button role="tab" data-tab="chat" aria-selected="false">Copilot Chat</button>
-      </nav>
-
-      <section id="cptab-overview" class="cp-tabpanel">
-        <div class="grid kpis" id="cpKpiRow"></div>
-
-        <div class="grid two section">
-          <div class="card chart-card">
-            <p class="ctitle">Daily active users</p>
-            <p class="cnote">Unique people using any Copilot capability each day. Regular dips fall on weekends.</p>
-            <div id="cpAllTrend"></div>
-          </div>
-          <div class="card chart-card">
-            <p class="ctitle">Average daily active users by app</p>
-            <p class="cnote">Mean daily active users per Copilot surface across the window (from the activity-trend export).</p>
-            <div id="cpByApp"></div>
-          </div>
-        </div>
-      </section>
-
-      <section id="cptab-trends" class="cp-tabpanel hidden">
-        <div class="section">
-          <h2>Adoption trends</h2>
-          <p class="lede">Daily active users for Copilot overall and per app. Only apps with recorded activity are shown. Weekend troughs are normal.</p>
-        </div>
-        <div class="grid three" id="cpTrendGrid"></div>
-      </section>
-
-      <section id="cptab-products" class="cp-tabpanel hidden">
-        <div class="section"><h2>By product</h2>
-          <p class="lede">Enabled vs. active users per Copilot surface, with adoption rate. Snapshot from the latest adoption-by-product export. Sort any column; drag a column edge to resize.</p></div>
-        <div class="grid two section">
-          <div class="card chart-card">
-            <p class="ctitle">Adoption rate by product</p>
-            <p class="cnote">Active users as a share of enabled users (snapshot).</p>
-            <div id="cpAdoptBars"></div>
-          </div>
-          <div class="card">
-            <div class="controls">
-              <span class="rowcount" id="cpProdCount"></span>
-            </div>
-            <div class="tablewrap"><table id="cpProdTable"><thead></thead><tbody></tbody></table></div>
-          </div>
-        </div>
-      </section>
-
-      <section id="cptab-people" class="cp-tabpanel hidden">
-        <div class="section"><h2>People</h2>
-          <p class="lede">Per-person last-activity dates from the per-user export. Click any column heading to sort; drag a column edge to resize; search to find anyone.</p></div>
-        <div class="grid kpis section hidden" id="cpPeopleKpis"></div>
-        <div class="section">
-          <div class="card chart-card">
-            <p class="ctitle">Reach by app</p>
-            <p class="cnote">People with any recorded Copilot activity per app.</p>
-            <div id="cpReachBars"></div>
-            <p class="cnote" id="cpReachNote"></p>
-          </div>
-        </div>
-        <div class="section">
-          <div class="card">
-            <div class="controls">
-              <input type="search" id="cpUsrSearch" placeholder="Search person&hellip;">
-              <span class="rowcount" id="cpUsrCount"></span>
-            </div>
-            <div class="tablewrap"><table id="cpUsrTable"><thead></thead><tbody></tbody></table></div>
-          </div>
-        </div>
-      </section>
-
-      <section id="cptab-agents" class="cp-tabpanel hidden">
-        <div class="section"><h2>Agents</h2>
-          <p class="lede">Declarative agent usage over the last 30 days, plus the full inventory of agents (declarative and non-declarative). Tables sort on any column and resize by dragging a column edge.</p></div>
-
-        <div class="section" id="cpxAgentsPlaceholder">
-          <div class="card loadbox">
-            <h2>No agent data loaded</h2>
-            <p class="muted">To view this tab, click <strong>Refresh data</strong> &rarr; <strong>Upload / Replace files</strong> and upload the agent CSV exports:</p>
-            <ul class="filechecklist" id="cpxAgentsCheck"></ul>
-          </div>
-        </div>
-
-        <div id="cpxDeclWrap" class="hidden">
-          <div class="section"><h2>Declarative agents &middot; 30-day usage</h2></div>
-          <div class="grid kpis section" id="cpxDeclKpis"></div>
-          <div class="section">
-            <div class="card chart-card">
-              <p class="ctitle">Top declarative agents by active users</p>
-              <p class="cnote">Active users recorded over the 30-day window.</p>
-              <div id="cpxDeclBars"></div>
-            </div>
-          </div>
-          <div class="section">
-            <div class="card">
-              <div class="controls">
-                <input type="search" id="cpxDeclSearch" placeholder="Search agent&hellip;">
-                <span class="rowcount" id="cpxDeclCount"></span>
-              </div>
-              <div class="tablewrap"><table id="cpxDeclTable"><thead></thead><tbody></tbody></table></div>
-            </div>
-          </div>
-        </div>
-
-        <div id="cpxAllWrap" class="hidden">
-          <div class="section"><h2>All agents &middot; inventory</h2></div>
-          <div class="grid kpis section" id="cpxAllKpis"></div>
           <div class="grid two section">
             <div class="card chart-card">
-              <p class="ctitle">Agents by platform</p>
-              <p class="cnote">Distribution across host platforms.</p>
-              <div id="cpxPlatBars"></div>
+              <p class="ctitle">Daily reads</p>
+              <p class="cnote">Total posts read across all communities each day. Regular dips fall on weekends.</p>
+              <div id="ovReads"></div>
             </div>
-            <div class="card chart-card">
-              <p class="ctitle">Agents by status</p>
-              <p class="cnote">Publication / lifecycle state.</p>
-              <div id="cpxStatusBars"></div>
-            </div>
-          </div>
-          <div class="section">
             <div class="card">
-              <div class="controls">
-                <input type="search" id="cpxAllSearch" placeholder="Search agent&hellip;">
-                <span class="rowcount" id="cpxAllCount"></span>
-              </div>
-              <div class="tablewrap"><table id="cpxAllTable"><thead></thead><tbody></tbody></table></div>
+              <h3>Participation ladder</h3>
+              <p class="lede" id="funnelLede">How many unique users read, react, and create over the reporting window.
+              </p>
+              <div class="funnel" id="funnel"></div>
             </div>
           </div>
-        </div>
-      </section>
 
-      <section id="cptab-chat" class="cp-tabpanel hidden">
-        <div class="section"><h2>Microsoft 365 Copilot Chat</h2>
-          <p class="lede">Chat adoption and prompt volume by app over the selected period, plus per-person end-user usage details. Tables sort on any column and resize by dragging a column edge.</p></div>
-
-        <div class="section" id="cpxChatPlaceholder">
-          <div class="card loadbox">
-            <h2>No Copilot Chat data loaded</h2>
-            <p class="muted">To view this tab, click <strong>Refresh data</strong> &rarr; <strong>Upload / Replace files</strong> and upload the Copilot Chat CSV exports:</p>
-            <ul class="filechecklist" id="cpxChatCheck"></ul>
-          </div>
-        </div>
-
-        <div id="cpxChatTopWrap" class="hidden">
-          <div class="grid kpis section" id="cpxChatKpis"></div>
           <div class="grid two section">
             <div class="card chart-card">
-              <p class="ctitle">Adoption by app</p>
-              <p class="cnote">Active users per app over the period.</p>
-              <div id="cpxAdoptBars"></div>
-              <p class="cnote" id="cpxAdoptNote"></p>
+              <p class="ctitle">Top communities by reads</p>
+              <p class="cnote">Most-read communities in the period.</p>
+              <div id="ovTopGroups"></div>
             </div>
             <div class="card chart-card">
-              <p class="ctitle">Prompts submitted by app</p>
-              <p class="cnote">Total prompts per app over the period.</p>
-              <div id="cpxPromptBars"></div>
-              <p class="cnote" id="cpxPromptNote"></p>
+              <p class="ctitle">How people access Viva Engage</p>
+              <p class="cnote">Share of active users by device type (users can appear in more than one).</p>
+              <div id="ovDevices"></div>
+              <div class="legend" id="ovDevLegend"></div>
             </div>
           </div>
+        </section>
+
+        <section id="tab-trends" class="tabpanel hidden">
+          <div class="section">
+            <h2>Activity trends</h2>
+            <p class="lede">Daily totals (left) and the number of unique people taking each action (right). Weekend
+              troughs are normal.</p>
+          </div>
+          <div class="grid three">
+            <div class="card chart-card">
+              <p class="ctitle">Reads - total</p>
+              <div id="trReadTot"></div>
+            </div>
+            <div class="card chart-card">
+              <p class="ctitle">Posts - total</p>
+              <div id="trPostTot"></div>
+            </div>
+            <div class="card chart-card">
+              <p class="ctitle">Likes - total</p>
+              <div id="trLikeTot"></div>
+            </div>
+            <div class="card chart-card">
+              <p class="ctitle">Active readers</p>
+              <p class="cnote">unique people reading</p>
+              <div id="trReadU"></div>
+            </div>
+            <div class="card chart-card">
+              <p class="ctitle">Active posters</p>
+              <p class="cnote">unique people posting</p>
+              <div id="trPostU"></div>
+            </div>
+            <div class="card chart-card">
+              <p class="ctitle">Active likers</p>
+              <p class="cnote">unique people reacting</p>
+              <div id="trLikeU"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="tab-communities" class="tabpanel hidden">
+          <div class="section">
+            <h2>Communities</h2>
+            <p class="lede">Every community with activity in the period. Sort any column; drag a column edge to resize;
+              search by name or owner.</p>
+          </div>
+          <div class="controls">
+            <input type="search" id="grpSearch" placeholder="Search community or owner&hellip;">
+            <select id="grpType">
+              <option value="">All types</option>
+              <option value="public">Public</option>
+              <option value="private">Private</option>
+            </select>
+            <label><input type="checkbox" id="grpActiveOnly"> Active only</label>
+            <span class="rowcount" id="grpCount"></span>
+          </div>
+          <div class="tablewrap">
+            <table id="grpTable">
+              <thead></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="tab-contributors" class="tabpanel hidden">
+          <div class="section">
+            <h2>People</h2>
+            <p class="lede">Engaged users ranked by activity. Click any column heading to sort; drag a column edge to
+              resize; search to find anyone.</p>
+          </div>
+          <div class="controls">
+            <input type="search" id="usrSearch" placeholder="Search person&hellip;">
+            <span class="rowcount" id="usrCount"></span>
+          </div>
+          <div class="tablewrap">
+            <table id="usrTable">
+              <thead></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="tab-devices" class="tabpanel hidden">
+          <div class="section">
+            <h2>Device usage</h2>
+            <p class="lede">Platforms active users rely on. A single person may use several.</p>
+          </div>
+          <div class="grid two">
+            <div class="card chart-card">
+              <p class="ctitle">Users by platform</p>
+              <p class="cnote">Users are counted for each platform they accessed (e.g., Web, Teams, mobile apps). A
+                single user can appear in multiple categories if they used more than one access method, so totals will
+                exceed the number of unique users.</p>
+              <div id="dvBars"></div>
+            </div>
+            <div class="card chart-card">
+              <p class="ctitle">Web vs. mobile access</p>
+              <p class="cnote">Each user is counted once and categorized based on their activity across all devices.
+                “Used mobile” includes anyone who accessed Viva Engage from a mobile or integrated app (e.g., Teams or
+                mobile devices) at least once. “Web only” represents users who accessed Viva Engage exclusively through
+                a browser</p>
+              <div id="dvDonut"></div>
+              <div class="legend" id="dvDonutLegend"></div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <footer class="app">
+        <span id="footNote"></span>
+      </footer>
+    </div>
+
+    <!-- Microsoft Copilot section -->
+    <div id="cp-app" class="product-pane hidden">
+
+      <header class="app cp">
+        <div class="titles">
+          <h1>Microsoft 365 Copilot Adoption Board</h1>
+          <p id="cpSubtitle">Leadership view of Copilot adoption &middot; loading data&hellip;</p>
+        </div>
+        <div class="meta-pills" id="cpMetaPills"></div>
+        <div class="refresh-dropdown-container">
+          <button class="btn" id="cpReloadBtn" title="Options to refresh, upload, or clear data">&#x21bb; Refresh
+            data</button>
+          <div class="refresh-dropdown" id="cpReloadDropdown">
+            <button id="cpUploadReplace">&#x21ea; Upload / Replace files</button>
+            <button id="cpClearData" class="danger">&#x1f5d1; Clear all data</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Fallback screen for uploading Copilot reports -->
+      <div id="cpStatus">
+        <div class="loadbox" id="cpLoadingBox">
+          <div class="spinner"></div>
+          <h2>Loading Copilot data&hellip;</h2>
+          <p class="muted">Reading the three Microsoft 365 Copilot usage reports from this folder.</p>
         </div>
 
-        <div id="cpxChatUsersWrap" class="hidden">
-          <div class="section"><h2>End-user usage details</h2></div>
-          <div class="grid kpis section" id="cpxChatKpis2"></div>
+        <div class="loadbox hidden" id="cpFallbackBox">
+          <h2>Add the data files to view the board</h2>
+          <p>This board reads three required Microsoft 365 Copilot usage exports, plus up to five optional
+            reports (Agents and Copilot Chat) that unlock the extra tabs - eight files in all. When the page
+            is opened directly from your computer, browsers block automatic file access for security, so drop
+            the files below to load them. Drop all of them at once; the optional ones can be added anytime.
+            Your data stays on your machine; nothing is uploaded anywhere.</p>
+          <div class="drop" id="cpDropZone">
+            <strong>Drop your CSV files here</strong> or click to choose them
+            <span class="cnote">3 required &middot; 5 optional</span>
+            <input type="file" id="cpFileInput" accept=".csv" multiple class="hidden">
+          </div>
+          <ul class="filechecklist" id="cpFileChecklist"></ul>
+          <p class="err" id="cpFallbackErr"></p>
+          <div style="margin-top: 16px;">
+            <button class="btn ghost hidden" id="cpBackBtn">&larr; Back to dashboard</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main dashboard content -->
+      <div id="cpDash" class="hidden">
+        <nav class="tabs grouped-tabs" id="cpTabs" role="tablist">
+          <div class="tab-group">
+            <span class="tab-group-label">Licensed Users</span>
+            <div class="tab-group-buttons">
+              <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+              <button role="tab" data-tab="trends" aria-selected="false">Trends</button>
+              <button role="tab" data-tab="products" aria-selected="false">By product</button>
+              <button role="tab" data-tab="people" aria-selected="false">People</button>
+            </div>
+          </div>
+
+          <div class="tab-group">
+            <span class="tab-group-label">Agents</span>
+            <div class="tab-group-buttons">
+              <button role="tab" data-tab="agents" aria-selected="false">Overview</button>
+            </div>
+          </div>
+
+          <div class="tab-group">
+            <span class="tab-group-label">Copilot Chat <span class="unlicensed-badge">(Non-licensed)</span></span>
+            <div class="tab-group-buttons">
+              <button role="tab" data-tab="chat" aria-selected="false">Overview</button>
+            </div>
+          </div>
+        </nav>
+
+        <section id="cptab-overview" class="cp-tabpanel">
+          <div class="grid kpis" id="cpKpiRow"></div>
+
+          <div class="grid two section">
+            <div class="card chart-card">
+              <p class="ctitle">Daily active users</p>
+              <p class="cnote">Unique people using any Copilot capability each day. Regular dips fall on weekends.</p>
+              <div id="cpAllTrend"></div>
+            </div>
+            <div class="card chart-card">
+              <p class="ctitle">Average daily active users by app</p>
+              <p class="cnote">Mean daily active users per Copilot surface across the window (from the activity-trend
+                export).</p>
+              <div id="cpByApp"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="cptab-trends" class="cp-tabpanel hidden">
+          <div class="section">
+            <h2>Adoption trends</h2>
+            <p class="lede">Daily active users for Copilot overall and per app. Only apps with recorded activity are
+              shown. Weekend troughs are normal.</p>
+          </div>
+          <div class="grid three" id="cpTrendGrid"></div>
+        </section>
+
+        <section id="cptab-products" class="cp-tabpanel hidden">
+          <div class="section">
+            <h2>By product</h2>
+            <p class="lede">Enabled vs. active users per Copilot surface, with adoption rate. Snapshot from the latest
+              adoption-by-product export. Sort any column; drag a column edge to resize.</p>
+          </div>
+          <div class="grid two section">
+            <div class="card chart-card">
+              <p class="ctitle">Adoption rate by product</p>
+              <p class="cnote">Active users as a share of enabled users (snapshot).</p>
+              <div id="cpAdoptBars"></div>
+            </div>
+            <div class="card">
+              <div class="controls">
+                <span class="rowcount" id="cpProdCount"></span>
+              </div>
+              <div class="tablewrap">
+                <table id="cpProdTable">
+                  <thead></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="cptab-people" class="cp-tabpanel hidden">
+          <div class="section">
+            <h2>People</h2>
+            <p class="lede">Per-person last-activity dates from the per-user export. Click any column heading to sort;
+              drag a column edge to resize; search to find anyone.</p>
+          </div>
+          <div class="grid kpis section hidden" id="cpPeopleKpis"></div>
           <div class="section">
             <div class="card chart-card">
               <p class="ctitle">Reach by app</p>
-              <p class="cnote">People with any recorded Copilot Chat activity per app.</p>
-              <div id="cpxChatReach"></div>
+              <p class="cnote">People with any recorded Copilot activity per app.</p>
+              <div id="cpReachBars"></div>
+              <p class="cnote" id="cpReachNote"></p>
             </div>
           </div>
           <div class="section">
             <div class="card">
               <div class="controls">
-                <input type="search" id="cpxChatUsrSearch" placeholder="Search person&hellip;">
-                <span class="rowcount" id="cpxChatUsrCount"></span>
+                <input type="search" id="cpUsrSearch" placeholder="Search person&hellip;">
+                <span class="rowcount" id="cpUsrCount"></span>
               </div>
-              <div class="tablewrap"><table id="cpxChatUsrTable"><thead></thead><tbody></tbody></table></div>
+              <div class="tablewrap">
+                <table id="cpUsrTable">
+                  <thead></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+
+        <section id="cptab-agents" class="cp-tabpanel hidden">
+          <div class="section">
+            <h2>Agents</h2>
+            <p class="lede">Declarative agent usage over the last 30 days, plus the full inventory of agents
+              (declarative and non-declarative). Tables sort on any column and resize by dragging a column edge.</p>
+          </div>
+
+          <div class="section" id="cpxAgentsPlaceholder">
+            <div class="card loadbox">
+              <h2>No agent data loaded</h2>
+              <p class="muted">To view this tab, click <strong>Refresh data</strong> &rarr; <strong>Upload / Replace
+                  files</strong> and upload the agent CSV exports:</p>
+              <ul class="filechecklist" id="cpxAgentsCheck"></ul>
+            </div>
+          </div>
+
+          <div id="cpxDeclWrap" class="hidden">
+            <div class="section">
+              <h2>Declarative agents &middot; 30-day usage</h2>
+            </div>
+            <div class="grid kpis section" id="cpxDeclKpis"></div>
+            <div class="section">
+              <div class="card chart-card">
+                <p class="ctitle">Top declarative agents by active users</p>
+                <p class="cnote">Active users recorded over the 30-day window.</p>
+                <div id="cpxDeclBars"></div>
+              </div>
+            </div>
+            <div class="section">
+              <div class="card">
+                <div class="controls">
+                  <input type="search" id="cpxDeclSearch" placeholder="Search agent&hellip;">
+                  <span class="rowcount" id="cpxDeclCount"></span>
+                </div>
+                <div class="tablewrap">
+                  <table id="cpxDeclTable">
+                    <thead></thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="cpxAllWrap" class="hidden">
+            <div class="section">
+              <h2>All agents &middot; inventory</h2>
+            </div>
+            <div class="grid kpis section" id="cpxAllKpis"></div>
+            <div class="grid two section">
+              <div class="card chart-card">
+                <p class="ctitle">Agents by platform</p>
+                <p class="cnote">Distribution across host platforms.</p>
+                <div id="cpxPlatBars"></div>
+              </div>
+              <div class="card chart-card">
+                <p class="ctitle">Agents by status</p>
+                <p class="cnote">Publication / lifecycle state.</p>
+                <div id="cpxStatusBars"></div>
+              </div>
+            </div>
+            <div class="section">
+              <div class="card">
+                <div class="controls">
+                  <input type="search" id="cpxAllSearch" placeholder="Search agent&hellip;">
+                  <span class="rowcount" id="cpxAllCount"></span>
+                </div>
+                <div class="tablewrap">
+                  <table id="cpxAllTable">
+                    <thead></thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="cptab-chat" class="cp-tabpanel hidden">
+          <div class="section">
+            <h2>Microsoft 365 Copilot Chat</h2>
+            <p class="lede">Chat adoption and prompt volume by app over the selected period, plus per-person end-user
+              usage details. Tables sort on any column and resize by dragging a column edge.</p>
+          </div>
+
+          <div class="section" id="cpxChatPlaceholder">
+            <div class="card loadbox">
+              <h2>No Copilot Chat data loaded</h2>
+              <p class="muted">To view this tab, click <strong>Refresh data</strong> &rarr; <strong>Upload / Replace
+                  files</strong> and upload the Copilot Chat CSV exports:</p>
+              <ul class="filechecklist" id="cpxChatCheck"></ul>
+            </div>
+          </div>
+
+          <div id="cpxChatTopWrap" class="hidden">
+            <div class="grid kpis section" id="cpxChatKpis"></div>
+            <div class="grid two section">
+              <div class="card chart-card">
+                <p class="ctitle">Adoption by app</p>
+                <p class="cnote">Active users per app over the period.</p>
+                <div id="cpxAdoptBars"></div>
+                <p class="cnote" id="cpxAdoptNote"></p>
+              </div>
+              <div class="card chart-card">
+                <p class="ctitle">Prompts submitted by app</p>
+                <p class="cnote">Total prompts per app over the period.</p>
+                <div id="cpxPromptBars"></div>
+                <p class="cnote" id="cpxPromptNote"></p>
+              </div>
+            </div>
+          </div>
+
+          <div id="cpxChatUsersWrap" class="hidden">
+            <div class="section">
+              <h2>End-user usage details</h2>
+            </div>
+            <div class="grid kpis section" id="cpxChatKpis2"></div>
+            <div class="section">
+              <div class="card chart-card">
+                <p class="ctitle">Reach by app</p>
+                <p class="cnote">People with any recorded Copilot Chat activity per app.</p>
+                <div id="cpxChatReach"></div>
+              </div>
+            </div>
+            <div class="section">
+              <div class="card">
+                <div class="controls">
+                  <input type="search" id="cpxChatUsrSearch" placeholder="Search person&hellip;">
+                  <span class="rowcount" id="cpxChatUsrCount"></span>
+                </div>
+                <div class="tablewrap">
+                  <table id="cpxChatUsrTable">
+                    <thead></thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <footer class="app">
+        <span id="cpFootNote"></span>
+      </footer>
     </div>
 
-    <footer class="app">
-      <span id="cpFootNote"></span>
-    </footer>
+    <!-- Microsoft Teams section -->
+    <div id="tm-app" class="product-pane hidden">
+
+      <header class="app tm">
+        <div class="titles">
+          <h1>Microsoft Teams Adoption Board</h1>
+          <p id="tmSubtitle">Leadership view of Teams usage &middot; loading data&hellip;</p>
+        </div>
+        <div class="meta-pills" id="tmMetaPills"></div>
+        <div class="refresh-dropdown-container">
+          <button class="btn" id="tmReloadBtn" title="Options to refresh, upload, or clear data">&#x21bb; Refresh
+            data</button>
+          <div class="refresh-dropdown" id="tmReloadDropdown">
+            <button id="tmUploadReplace">&#x21ea; Upload / Replace files</button>
+            <button id="tmClearData" class="danger">&#x1f5d1; Clear all data</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Fallback screen for uploading Teams user activity -->
+      <div id="tmStatus">
+        <div class="loadbox" id="tmLoadingBox">
+          <div class="spinner"></div>
+          <h2>Loading Teams data&hellip;</h2>
+          <p class="muted">Reading the Teams user-activity report from this folder.</p>
+        </div>
+
+        <div class="loadbox hidden" id="tmFallbackBox">
+          <h2>Add the data file to view the board</h2>
+          <p>This board reads the Microsoft Teams user-activity export
+            (Teams_UserActivityUserDetail). When the page is opened directly from your computer, browsers
+            block automatic file access for security - so drop the file below to load it. Your data stays
+            on your machine; nothing is uploaded anywhere.</p>
+          <div class="drop" id="tmDropZone">
+            <strong>Drop the Teams CSV here</strong> or click to choose it
+            <input type="file" id="tmFileInput" accept=".csv" multiple class="hidden">
+          </div>
+          <ul class="filechecklist" id="tmFileChecklist"></ul>
+          <p class="err" id="tmFallbackErr"></p>
+          <div style="margin-top: 16px;">
+            <button class="btn ghost hidden" id="tmBackBtn">&larr; Back to dashboard</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main dashboard content -->
+      <div id="tmDash" class="hidden">
+        <nav class="tabs" id="tmTabs" role="tablist">
+          <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+          <button role="tab" data-tab="meetings" aria-selected="false">Meetings</button>
+          <button role="tab" data-tab="messaging" aria-selected="false">Messaging</button>
+          <button role="tab" data-tab="people" aria-selected="false">People</button>
+        </nav>
+
+        <section id="tmtab-overview" class="tm-tabpanel">
+          <div class="grid kpis" id="tmKpiRow"></div>
+
+          <div class="grid two section">
+            <div class="card chart-card">
+              <p class="ctitle">Activity mix</p>
+              <p class="cnote">Total Teams actions across all users in the window. Each bar is a different action type,
+                so totals are not additive across users.</p>
+              <div id="tmActivityMix"></div>
+            </div>
+            <div class="card chart-card">
+              <p class="ctitle">Top people by meetings</p>
+              <p class="cnote">Users with the most meetings (organized or attended) in the window.</p>
+              <div id="tmTopMeet"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="tmtab-meetings" class="tm-tabpanel hidden">
+          <div class="section">
+            <h2>Meetings &amp; calls</h2>
+            <p class="lede">How meetings break down across the organization, and the time spent in real-time
+              communication.</p>
+          </div>
+          <div class="grid two section">
+            <div class="card chart-card">
+              <p class="ctitle">Organized vs. attended</p>
+              <p class="cnote">Total meetings organized and attended across all users.</p>
+              <div id="tmOrgAtt"></div>
+            </div>
+            <div class="card chart-card">
+              <p class="ctitle">Meetings by type</p>
+              <p class="cnote">Meetings attended, split by ad-hoc, scheduled one-time, and scheduled recurring.</p>
+              <div id="tmMeetType"></div>
+            </div>
+          </div>
+          <div class="grid two section">
+            <div class="card chart-card">
+              <p class="ctitle">Communication time</p>
+              <p class="cnote">Total hours of audio, video, and screen sharing across all users.</p>
+              <div id="tmDurations"></div>
+            </div>
+            <div class="card chart-card">
+              <p class="ctitle">Top meeting organizers</p>
+              <p class="cnote">Users who organized the most meetings.</p>
+              <div id="tmTopOrg"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="tmtab-messaging" class="tm-tabpanel hidden">
+          <div class="section">
+            <h2>Messaging</h2>
+            <p class="lede">Chat and channel messaging activity across the organization.</p>
+          </div>
+          <div class="grid two section">
+            <div class="card chart-card">
+              <p class="ctitle">Chat messages by type</p>
+              <p class="cnote">Team (group) chat vs. private 1:1 chat messages.</p>
+              <div id="tmChatDonut"></div>
+              <div class="legend" id="tmChatLegend"></div>
+            </div>
+            <div class="card chart-card">
+              <p class="ctitle">Channel activity</p>
+              <p class="cnote">Channel posts, replies, and urgent messages.</p>
+              <div id="tmChannelBars"></div>
+            </div>
+          </div>
+          <div class="grid two section">
+            <div class="card chart-card">
+              <p class="ctitle">Top people by messages</p>
+              <p class="cnote">Users sending the most chat messages (team + private).</p>
+              <div id="tmTopMsg"></div>
+            </div>
+            <div class="card chart-card">
+              <p class="ctitle">Top callers</p>
+              <p class="cnote">Users with the most calls.</p>
+              <div id="tmTopCall"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="tmtab-people" class="tm-tabpanel hidden">
+          <div class="section">
+            <h2>People</h2>
+            <p class="lede">Per-person Teams activity. Click any column heading to sort; drag a column edge to resize;
+              search to find anyone.</p>
+          </div>
+          <div class="controls">
+            <input type="search" id="tmUsrSearch" placeholder="Search person&hellip;">
+            <label><input type="checkbox" id="tmActiveOnly"> Active only</label>
+            <span class="rowcount" id="tmUsrCount"></span>
+          </div>
+          <div class="tablewrap">
+            <table id="tmUsrTable">
+              <thead></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <footer class="app">
+        <span id="tmFootNote"></span>
+      </footer>
+    </div>
+
   </div>
 
-  <!-- Microsoft Teams section -->
-  <div id="tm-app" class="product-pane hidden">
-
-    <header class="app tm">
-      <div class="titles">
-        <h1>Microsoft Teams Adoption Board</h1>
-        <p id="tmSubtitle">Leadership view of Teams usage &middot; loading data&hellip;</p>
-      </div>
-      <div class="meta-pills" id="tmMetaPills"></div>
-      <div class="refresh-dropdown-container">
-        <button class="btn" id="tmReloadBtn" title="Options to refresh, upload, or clear data">&#x21bb; Refresh data</button>
-        <div class="refresh-dropdown" id="tmReloadDropdown">
-          <button id="tmUploadReplace">&#x21ea; Upload / Replace files</button>
-          <button id="tmClearData" class="danger">&#x1f5d1; Clear all data</button>
-        </div>
-      </div>
-    </header>
-
-    <!-- Fallback screen for uploading Teams user activity -->
-    <div id="tmStatus">
-      <div class="loadbox" id="tmLoadingBox">
-        <div class="spinner"></div>
-        <h2>Loading Teams data&hellip;</h2>
-        <p class="muted">Reading the Teams user-activity report from this folder.</p>
-      </div>
-
-      <div class="loadbox hidden" id="tmFallbackBox">
-        <h2>Add the data file to view the board</h2>
-        <p>This board reads the Microsoft Teams user-activity export
-           (Teams_UserActivityUserDetail). When the page is opened directly from your computer, browsers
-           block automatic file access for security - so drop the file below to load it. Your data stays
-           on your machine; nothing is uploaded anywhere.</p>
-        <div class="drop" id="tmDropZone">
-          <strong>Drop the Teams CSV here</strong> or click to choose it
-          <input type="file" id="tmFileInput" accept=".csv" multiple class="hidden">
-        </div>
-        <ul class="filechecklist" id="tmFileChecklist"></ul>
-        <p class="err" id="tmFallbackErr"></p>
-        <div style="margin-top: 16px;">
-          <button class="btn ghost hidden" id="tmBackBtn">&larr; Back to dashboard</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Main dashboard content -->
-    <div id="tmDash" class="hidden">
-      <nav class="tabs" id="tmTabs" role="tablist">
-        <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
-        <button role="tab" data-tab="meetings" aria-selected="false">Meetings</button>
-        <button role="tab" data-tab="messaging" aria-selected="false">Messaging</button>
-        <button role="tab" data-tab="people" aria-selected="false">People</button>
-      </nav>
-
-      <section id="tmtab-overview" class="tm-tabpanel">
-        <div class="grid kpis" id="tmKpiRow"></div>
-
-        <div class="grid two section">
-          <div class="card chart-card">
-            <p class="ctitle">Activity mix</p>
-            <p class="cnote">Total Teams actions across all users in the window. Each bar is a different action type, so totals are not additive across users.</p>
-            <div id="tmActivityMix"></div>
-          </div>
-          <div class="card chart-card">
-            <p class="ctitle">Top people by meetings</p>
-            <p class="cnote">Users with the most meetings (organized or attended) in the window.</p>
-            <div id="tmTopMeet"></div>
-          </div>
-        </div>
-      </section>
-
-      <section id="tmtab-meetings" class="tm-tabpanel hidden">
-        <div class="section"><h2>Meetings &amp; calls</h2>
-          <p class="lede">How meetings break down across the organization, and the time spent in real-time communication.</p></div>
-        <div class="grid two section">
-          <div class="card chart-card"><p class="ctitle">Organized vs. attended</p>
-            <p class="cnote">Total meetings organized and attended across all users.</p>
-            <div id="tmOrgAtt"></div></div>
-          <div class="card chart-card"><p class="ctitle">Meetings by type</p>
-            <p class="cnote">Meetings attended, split by ad-hoc, scheduled one-time, and scheduled recurring.</p>
-            <div id="tmMeetType"></div></div>
-        </div>
-        <div class="grid two section">
-          <div class="card chart-card"><p class="ctitle">Communication time</p>
-            <p class="cnote">Total hours of audio, video, and screen sharing across all users.</p>
-            <div id="tmDurations"></div></div>
-          <div class="card chart-card"><p class="ctitle">Top meeting organizers</p>
-            <p class="cnote">Users who organized the most meetings.</p>
-            <div id="tmTopOrg"></div></div>
-        </div>
-      </section>
-
-      <section id="tmtab-messaging" class="tm-tabpanel hidden">
-        <div class="section"><h2>Messaging</h2>
-          <p class="lede">Chat and channel messaging activity across the organization.</p></div>
-        <div class="grid two section">
-          <div class="card chart-card"><p class="ctitle">Chat messages by type</p>
-            <p class="cnote">Team (group) chat vs. private 1:1 chat messages.</p>
-            <div id="tmChatDonut"></div><div class="legend" id="tmChatLegend"></div></div>
-          <div class="card chart-card"><p class="ctitle">Channel activity</p>
-            <p class="cnote">Channel posts, replies, and urgent messages.</p>
-            <div id="tmChannelBars"></div></div>
-        </div>
-        <div class="grid two section">
-          <div class="card chart-card"><p class="ctitle">Top people by messages</p>
-            <p class="cnote">Users sending the most chat messages (team + private).</p>
-            <div id="tmTopMsg"></div></div>
-          <div class="card chart-card"><p class="ctitle">Top callers</p>
-            <p class="cnote">Users with the most calls.</p>
-            <div id="tmTopCall"></div></div>
-        </div>
-      </section>
-
-      <section id="tmtab-people" class="tm-tabpanel hidden">
-        <div class="section"><h2>People</h2>
-          <p class="lede">Per-person Teams activity. Click any column heading to sort; drag a column edge to resize; search to find anyone.</p></div>
-        <div class="controls">
-          <input type="search" id="tmUsrSearch" placeholder="Search person&hellip;">
-          <label><input type="checkbox" id="tmActiveOnly"> Active only</label>
-          <span class="rowcount" id="tmUsrCount"></span>
-        </div>
-        <div class="tablewrap"><table id="tmUsrTable"><thead></thead><tbody></tbody></table></div>
-      </section>
-    </div>
-
-    <footer class="app">
-      <span id="tmFootNote"></span>
-    </footer>
-  </div>
-
-</div>
-
-<script src="assets/dashboard.js"></script>
-<script src="assets/copilot.js"></script>
-<script src="assets/copilot-extras.js"></script>
-<script src="assets/teams.js"></script>
-<script src="assets/app.js"></script>
+  <script src="assets/dashboard.js"></script>
+  <script src="assets/copilot.js"></script>
+  <script src="assets/copilot-extras.js"></script>
+  <script src="assets/teams.js"></script>
+  <script src="assets/app.js"></script>
 </body>
+
 </html>
