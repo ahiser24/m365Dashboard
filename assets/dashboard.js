@@ -1,10 +1,7 @@
 "use strict";
 (function(){
-  // All five exports share one base name plus a _D## suffix that reflects the
-  // report period (30/60/90/180 days). The board auto-detects whichever period
-  // is present in the folder, so no edits are needed when the window changes.
-  // The CSVs live in a "Usage Reports" subfolder next to this page. The space is
-  // pre-encoded so the relative URL works over both http(s) and file://.
+  // Viva Engage reports share a base name and period suffix (e.g. _D30).
+  // We auto-detect the period so no configuration is required.
   var FOLDER = "Usage%20Reports/";
   var BASES = {
     byDate: "VivaEngage_ActivityByDate",
@@ -23,7 +20,7 @@
   var RAW = {}, DATA = {}, loadedFiles = {};
   var grpTbl = null, usrTbl = null;
 
-  /* ---------- helpers ---------- */
+  // Basic utility functions
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
@@ -38,7 +35,7 @@
   function pct(a,b){ return b? Math.round(a/b*1000)/10 : 0; }
   function clip(s,n){ s=String(s); return s.length>n? s.slice(0,n-1)+"…" : s; }
 
-  /* ---------- floating tooltip ---------- */
+  // Shared tooltip popup manager
   var Tip = {
     el:null,
     ensure:function(){
@@ -56,7 +53,7 @@
     hide:function(){ if(this.el) this.el.style.display="none"; }
   };
 
-  /* ---------- robust CSV parser (quoted fields, embedded commas/quotes, BOM) ---------- */
+  // Custom CSV parser handling quotes, commas, and BOM
   function parseCSV(text){
     text = text.replace(/^﻿/,"");
     var rows=[], row=[], field="", i=0, inQ=false, c, n=text.length;
@@ -85,14 +82,14 @@
     return {headers:headers, rows:out};
   }
 
-  /* ---------- compute derived datasets ---------- */
+  // Processes and aggregates RAW CSV data into stats for the UI
   function compute(){
-    /* ByDate: daily totals */
+    // Activity by date
     var bd = RAW.byDate.rows.map(function(r){
       return { date:r["Report Date"], liked:num(r["Liked"]), posted:num(r["Posted"]), read:num(r["Read"]) };
     }).filter(function(r){return r.date;}).sort(function(a,b){return a.date<b.date?-1:1;});
 
-    /* UserCounts: daily unique users per action */
+    // Unique user action counts
     var uc = RAW.counts.rows.map(function(r){
       return { date:r["Report Date"], liked:num(r["Liked"]), posted:num(r["Posted"]), read:num(r["Read"]) };
     }).filter(function(r){return r.date;}).sort(function(a,b){return a.date<b.date?-1:1;});
@@ -100,7 +97,7 @@
     var totRead=0, totPost=0, totLike=0;
     bd.forEach(function(d){ totRead+=d.read; totPost+=d.posted; totLike+=d.liked; });
 
-    /* ByUser: engagement per person */
+    // Individual engagement
     var users = RAW.byUser.rows.map(function(r){
       var posted=num(r["Posted Count"]), read=num(r["Read Count"]), liked=num(r["Liked Count"]);
       return {
@@ -120,7 +117,7 @@
       if(u.posted>0) posters++;
     });
 
-    /* Devices: per active user platform flags */
+    // Device/platform distribution
     var devCols=[
       {key:"Used Web",label:"Web"},
       {key:"Used Android Phone",label:"Android"},
@@ -143,7 +140,7 @@
     });
     var webOnly = Math.max(0, devActive - mobileUsers);
 
-    /* Groups */
+    // Community group details
     var groups = RAW.groups.rows.map(function(r){
       var posted=num(r["Posted Count"]), read=num(r["Read Count"]), liked=num(r["Liked Count"]);
       return {
@@ -161,8 +158,8 @@
 
     var refresh = RAW.byDate.rows.length? RAW.byDate.rows[0]["Report Refresh Date"] : "";
     var dmin = bd.length? bd[0].date : "", dmax = bd.length? bd[bd.length-1].date : "";
-    // Window length, in priority order: the "Report Period" column in the data,
-    // then the filename suffix we detected, then the actual span of dates present.
+    
+    // Determine reporting window length in days based on data metadata or file suffix
     var reportPeriod = RAW.byDate.rows.length? num(RAW.byDate.rows[0]["Report Period"]) : 0;
     var daySpan = (dmin&&dmax)? Math.round((Date.parse(dmax)-Date.parse(dmin))/86400000)+1 : bd.length;
     var windowDays = reportPeriod || detectedPeriod || daySpan || 30;
@@ -179,7 +176,7 @@
     };
   }
 
-  /* ---------- line chart (geometry + SVG + interactive hover) ---------- */
+  // Line chart SVG generator and interactive crosshair tracker
   function lineGeom(data, opt){
     opt=opt||{};
     var W=opt.w||520, H=opt.h||190, pl=42, pr=12, pt=12, pb=26;
@@ -215,7 +212,7 @@
     var xl="";
     [0, Math.floor((n-1)/2), n-1].forEach(function(i){
       if(i<0||i>=n) return;
-      var lab=(data[i].label||"").slice(5); // MM-DD
+      var lab=(data[i].label||"").slice(5); // Format date to MM-DD
       xl += '<text x="'+g.X(i).toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle" font-size="10" fill="var(--muted)">'+esc(lab)+'</text>';
     });
     var uid="g"+Math.random().toString(36).slice(2,8);
@@ -260,7 +257,7 @@
     box.addEventListener("mouseleave", leave);
   }
 
-  /* ---------- bar + donut (data-tip driven hover) ---------- */
+  // Bar and donut chart generators (uses data-tip for hover tooltips)
   function hBarChart(items, opt){
     opt=opt||{};
     var rowH=opt.rowH||26, gap=8, pl=opt.labelW||180, pr=54;
@@ -303,15 +300,13 @@
     }).join("");
   }
 
-  /* ---------- resizable, click-sortable table ---------- */
+  // SortTable class handles rendering resizable, sortable tables with comparison rows
   function addResizer(th, handle, table){
     var startX=0, startW=0, active=false;
     handle.addEventListener("pointerdown", function(e){
       e.preventDefault(); e.stopPropagation();
       active=true; startX=e.clientX; startW=th.getBoundingClientRect().width;
-      // Freeze every other column to its current pixel width and let the table
-      // grow past its container, so widening one column scrolls (via the
-      // .tablewrap overflow) instead of squishing the rest.
+      // Set explicit pixel widths for other columns so resizing triggers scrolling instead of squishing
       Array.prototype.forEach.call(table.querySelectorAll("thead th"), function(h){
         if(h===th) return;
         var cw=h.getBoundingClientRect().width;
@@ -496,7 +491,7 @@
     if(cl) cl.addEventListener("click", function(){ ui.panel.classList.add("hidden"); });
   };
 
-  /* ---------- renderers ---------- */
+  // UI Renderers
   function renderHeader(){
     var p=DATA.period, wd=DATA.windowDays;
     $("subtitle").innerHTML = "Community engagement across The Mosaic Company &middot; rolling "+wd+"-day window";
@@ -529,7 +524,7 @@
     renderLine($("ovReads"), DATA.byDate.map(function(d){return {label:d.date,v:d.read};}),
                {area:true,color:"var(--c1)",h:200,seriesLabel:"Reads"});
     var fl=$("funnelLede"); if(fl) fl.textContent="How many unique users read, react, and create over the "+DATA.windowDays+"-day window.";
-    // funnel
+    // Funnel steps
     var d=DATA, steps=[
       {l:"Read",v:d.readers,c:"var(--c1)"},
       {l:"Reacted",v:d.likers,c:"var(--c2)"},
@@ -541,11 +536,11 @@
         '<div class="track"><div class="fill" style="width:'+Math.max(6,s.v/top*100)+'%;background:'+s.c+'">'+fmt(s.v)+'</div></div>'+
         '<div class="pct">'+pct(s.v,d.engaged)+'%</div></div>';
     }).join("") + '<p class="cnote" style="margin-top:10px">Percentages are of the '+fmt(d.engaged)+' active participants.</p>';
-    // top groups
+    // Top community groups
     var tg=DATA.groups.slice().sort(function(a,b){return b.read-a.read;}).slice(0,10)
             .map(function(g){return {label:g.name,v:g.read};});
     $("ovTopGroups").innerHTML = hBarChart(tg,{color:"var(--c2)",labelW:190});
-    // devices
+    // Device platform stats
     var segs=DATA.devCols.map(function(c){return {label:c.label,v:DATA.devCount[c.label]};})
               .filter(function(s){return s.v>0;}).sort(function(a,b){return b.v-a.v;});
     $("ovDevices").innerHTML = hBarChart(segs,{labelW:110});
@@ -566,7 +561,7 @@
     L("trLikeU",uc,"liked","var(--c2)","Active likers");
   }
 
-  /* groups table */
+  // Groups data table definition
   function buildGroupsTable(){
     var cols=[
       {k:"name", t:"Community", sort:"string", render:function(g){return esc(g.name);}},
@@ -597,7 +592,7 @@
   }
   function renderGroups(){ if(!grpTbl) buildGroupsTable(); grpTbl.render(); }
 
-  /* users table */
+  // Users data table definition
   function buildUsersTable(){
     var cols=[
       {k:"name", t:"Person", sort:"string", render:function(u){return esc(u.name);}},
@@ -648,7 +643,7 @@
     hasData = true;
   }
 
-  /* ---------- tabs ---------- */
+  // Tab navigation switching
   function initTabs(){
     var btns=$("tabs").querySelectorAll("button");
     btns.forEach(function(b){
@@ -661,6 +656,7 @@
     });
   }
   
+  // Open the uploader view, keeping current dashboard data intact
   function openUploader(){
     $("status").classList.remove("hidden");
     $("loadingBox").classList.add("hidden");
@@ -669,6 +665,7 @@
     updateChecklist();
     toggleBack();
   }
+
   function backToReports(){
     if(!hasData) return;
     $("status").classList.add("hidden");
@@ -700,7 +697,7 @@
     });
     $("usrSearch").addEventListener("input",renderUsers);
     
-    // Wire up dropdown controls
+    // Header dropdown triggers
     var rBtn = $("reloadBtn");
     var rDropdown = $("reloadDropdown");
     if(rBtn && rDropdown){
@@ -733,9 +730,7 @@
       vBack.addEventListener("click", backToReports);
     }
 
-    // chart hover for bar/donut via data-tip delegation.
-    // Scoped to the Viva container so it never fires over the Copilot section
-    // (both dashboards share one page in the combined app).
+    // Dynamic mousemove tooltip delegate for SVG bar and donut charts
     var hoverRoot = document.getElementById("viva-app") || document;
     hoverRoot.addEventListener("mousemove", function(e){
       var t = e.target.closest && e.target.closest("[data-tip]");
@@ -747,21 +742,20 @@
           '<span>'+title+'</span><span class="tt-val">'+v+'</span></div>';
         Tip.show(html, e.clientX, e.clientY); return;
       }
-      // line charts manage their own tooltip on mouseleave
+      // Ignore line charts since they have their own mouse tracker
       if(e.target.closest && e.target.closest(".chartbox")) return;
       Tip.hide();
     });
   }
 
-  /* ---------- loading ---------- */
+  // File loading and automatic period detection
   function fetchText(url){
     return fetch(url,{cache:"no-store"}).then(function(res){
       if(!res.ok) throw new Error(url+" ("+res.status+")");
       return res.text();
     });
   }
-  // Probe the report-period suffix (_D30 -> _D60 -> _D90 -> _D180) until the
-  // activity-by-date file is found, then load the rest of the set at that period.
+  // Try to find the Viva Engage report files by probing different day periods
   function fetchAll(){
     detectedPeriod=0;
     var i=0;
@@ -774,8 +768,8 @@
           return fetchText(BASES[k]+"_D"+p+".csv").then(function(t){ RAW[k]=parseCSV(t); });
         }));
       }).catch(function(e){
-        if(detectedPeriod) throw e;   // period found but a sibling file is missing -> surface it
-        return tryNext();             // this period's file absent -> try the next window
+        if(detectedPeriod) throw e;   // Sibling file is missing, fail fast
+        return tryNext();             // Try next period
       });
     }
     return tryNext();
@@ -788,12 +782,12 @@
     fetchAll().then(function(){
       renderAll();
     }).catch(function(err){
-      // fetch blocked (file://) or files missing -> manual fallback
+      // Blocked or missing files, show drag-and-drop fallback
       showFallback(err);
     });
   }
 
-  /* ---------- manual fallback ---------- */
+  // Manual drag-and-drop CSV importer
   var fileMap = {};
   function nameToKey(fn){
     fn=fn.toLowerCase();
@@ -849,7 +843,7 @@
     });
   }
 
-  /* ---------- init / expose boot for the product switcher ---------- */
+  // Module entry point
   function init(){ initTabs(); initControls(); initFallback(); }
   window.VivaBoard = {
     booted:false,

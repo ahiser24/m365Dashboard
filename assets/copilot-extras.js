@@ -1,17 +1,10 @@
 "use strict";
-/* Microsoft 365 Copilot board — extension reports.
-   Adds two tabs to the existing Copilot dashboard (#cp-app):
-     • Agents      — declarative-agent 30-day usage + exhaustive agent inventory
-     • Copilot Chat — adoption by app, prompts submitted by app, end-user details
-   These exports carry timestamped filenames that change every download, so they
-   load via per-tab drag-and-drop (file:// friendly). The panels render whichever
-   files are present. Element IDs are prefixed "cpx" so this never clashes with
-   copilot.js. Bar tooltips reuse copilot.js's #cptip hover handler on #cp-app. */
+// Extension reports for Copilot Chat and Agents tabs
 (function(){
   var RAW = {};   // declAgents, agents, chatAdopt, chatPrompts, chatUsers
   var TBL = {};   // SortTable instances, kept so search re-renders them
 
-  /* ---------- helpers (mirror copilot.js) ---------- */
+  // Helper functions
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
@@ -27,7 +20,7 @@
   function clip(s,n){ s=String(s); return s.length>n? s.slice(0,n-1)+"…" : s; }
   var COLORS = ["var(--c1)","var(--c2)","var(--c3)","var(--c4)","var(--c5)","var(--c6)","var(--c7)","var(--c8)"];
 
-  /* Apps shared by the Copilot Chat exports. */
+  // Copilot Chat surfaces
   var EDP_APPS = [
     {key:"Microsoft 365 Copilot (app)", short:"Copilot app",       color:"var(--accent)"},
     {key:"Teams",                       short:"Teams",             color:"var(--c2)"},
@@ -40,7 +33,7 @@
     {key:"Copilot.cloud.microsoft",     short:"Copilot Chat (web)",color:"var(--c1)"}
   ];
 
-  /* ---------- CSV parser (mirror copilot.js) ---------- */
+  // CSV parser
   function parseCSV(text){
     text = text.replace(/^﻿/,"");
     var rows=[], row=[], field="", i=0, inQ=false, c, n=text.length;
@@ -69,7 +62,7 @@
     return {headers:headers, rows:out};
   }
 
-  /* ---------- horizontal bar chart (mirror copilot.js data-tip contract) ---------- */
+  // SVG horizontal bar chart generator
   function hBar(items, opt){
     opt=opt||{};
     var n=items.length, rowH=opt.rowH||20, gap=opt.gap||9, pl=opt.labelW||130, pr=58;
@@ -89,7 +82,7 @@
     return out+'</svg>';
   }
 
-  /* ---------- resizable, sortable table with multi-row comparison (shared engine) ---------- */
+  // SortTable class definition
   function addResizer(th, handle, table){
     var startX=0, startW=0, active=false;
     handle.addEventListener("pointerdown", function(e){
@@ -285,7 +278,7 @@
     }).join("");
   }
 
-  /* ======================= AGENTS — declarative 30-day usage ======================= */
+  // Declarative Agent usage analysis
   function computeDecl(){
     return RAW.declAgents.rows.map(function(r){
       var lic=num(r["Active users (licensed)"]), unlic=num(r["Active users (unlicensed)"]);
@@ -340,7 +333,7 @@
     $("cpxDeclWrap").classList.remove("hidden");
   }
 
-  /* ======================= AGENTS — exhaustive inventory ======================= */
+  // Exhaustive Agent inventory analytics
   function computeAll(){
     return RAW.agents.rows.map(function(r){
       return {
@@ -404,9 +397,9 @@
     $("cpxAllWrap").classList.remove("hidden");
   }
 
-  /* ======================= COPILOT CHAT — adoption & prompts by app ======================= */
+  // Copilot Chat adoption & prompts analysis
   function pickPeriodRow(parsed, anyCol, appSuffix){
-    // exports carry one row per period; use the widest period as the headline.
+    // Select the longest reporting period from row list
     var best=null;
     parsed.rows.forEach(function(r){
       var p=num(r["Report period"]);
@@ -451,7 +444,7 @@
     $("cpxChatTopWrap").classList.remove("hidden");
   }
 
-  /* ======================= COPILOT CHAT — end-user details ======================= */
+  // Copilot Chat per-person usage details
   function computeChatUsers(){
     return RAW.chatUsers.rows.map(function(r){
       var o={
@@ -513,14 +506,13 @@
     $("cpxChatUsersWrap").classList.remove("hidden");
   }
 
-  /* ---------- file routing + ingestion ---------- */
+  // Drag-and-drop file router
   function nameToKey(fn){
     fn=fn.toLowerCase();
     if(fn.indexOf("declarativeagents")>=0) return "declAgents";
     if(fn.indexOf("adoptionbyperiod")>=0) return "chatAdopt";
     if(fn.indexOf("promptssubmittedbyperiod")>=0) return "chatPrompts";
-    // Only the EDP variant belongs here; the plain "CopilotActivityUserDetail"
-    // (no "edp") is the richer People export handled by copilot.js.
+    // Route to Copilot Chat user list if EDP suffix present
     if(fn.indexOf("activityuserdetail")>=0 && fn.indexOf("edp")>=0) return "chatUsers";
     if(fn.indexOf("agents")>=0) return "agents";   // exhaustive list, checked last
     return null;
@@ -584,9 +576,7 @@
     });
   }
 
-  // Build the "Add / replace files" reveal button for a tab and slot it just
-  // before that tab's drop panel. Clicking it re-shows the panel and hides the
-  // button; the panel re-collapses automatically on the next successful ingest.
+  // Setup button to reveal uploader drawer
   function makeReveal(which, label){
     var load=$("cpx"+(which==="agents"?"Agents":"Chat")+"Load");
     if(!load || !load.parentNode) return;

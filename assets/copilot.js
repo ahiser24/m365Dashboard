@@ -1,13 +1,7 @@
 "use strict";
-/* Microsoft 365 Copilot adoption board.
-   Self-contained module: loads the three Copilot usage exports, computes
-   leadership-facing datasets, and renders into the #cp-app container.
-   Element IDs are prefixed "cp" so this can coexist with the Viva board
-   on the same page. */
+// Copilot dashboard loader and UI renderer
 (function(){
-  // The three exports share a base name plus a period suffix. Microsoft's
-  // portal exports the suffix a few different ways ( _D30 , _'D30' , _30 ),
-  // so we probe several styles and auto-detect whichever window is present.
+  // Probe several filename suffix styles to auto-detect the period
   var FOLDER = "Usage%20Reports/";
   var BASES = {
     byProduct:  "CopilotAdoptionByProduct",
@@ -18,9 +12,7 @@
   function suffixes(p){ return ["_D"+p, "_'D"+p+"'", "_"+p]; }
   var LABELS = { byProduct:"Adoption by product", trend:"Adoption trend", userDetail:"Usage by user" };
 
-  // Apps tracked across the exports. `trend`/`prod` give the column prefix in
-  // the summary files; `det` is the per-user last-activity column in the detail
-  // export (null where the export has no matching column).
+  // Map columns for Copilot apps tracked in standard reports
   var APPS = [
     {key:"Copilot Chat",                 short:"Copilot Chat", color:"var(--c1)",  det:"copilotChatLastActivityDate",      inProd:false},
     {key:"Teams",                        short:"Teams",        color:"var(--c2)",  det:"microsoftTeamsCopilotLastActivityDate", inProd:true},
@@ -34,9 +26,7 @@
     {key:"Microsoft 365 Copilot (app)",  short:"Copilot app",  color:"var(--accent)", det:null,                          inProd:true}
   ];
 
-  // Columns in the richer per-user export (CopilotActivityUserDetail, no "EDP").
-  // When that file is loaded it overrides the basic usage export in the People
-  // tab: it carries prompt counts, active-usage days, and more app columns.
+  // Map columns for richer activity detail reports
   var RICH_APPS = [
     {key:"Copilot Chat (work)", short:"Chat (work)",   color:"var(--c1)",     col:"Last activity date of Copilot Chat (work) (UTC)"},
     {key:"Copilot Chat (web)",  short:"Chat (web)",    color:"var(--c1)",     col:"Last activity date of Copilot Chat (web) (UTC)"},
@@ -56,7 +46,7 @@
   var COLORS = ["var(--c1)","var(--c2)","var(--c3)","var(--c4)","var(--c5)","var(--c6)","var(--c7)","var(--c8)"];
   var RAW = {}, DATA = {}, usrTbl = null, usrTblRich = null, prodTbl = null;
 
-  /* ---------- helpers ---------- */
+  // Helpers
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
@@ -71,7 +61,7 @@
   function pct(a,b){ return b? Math.round(a/b*1000)/10 : 0; }
   function clip(s,n){ s=String(s); return s.length>n? s.slice(0,n-1)+"…" : s; }
 
-  /* ---------- floating tooltip (own element id so it never clashes with Viva) ---------- */
+  // Custom tooltip popup positioner for Copilot charts
   var Tip = {
     el:null,
     ensure:function(){
@@ -89,7 +79,7 @@
     hide:function(){ if(this.el) this.el.style.display="none"; }
   };
 
-  /* ---------- robust CSV parser ---------- */
+  // CSV Parser
   function parseCSV(text){
     text = text.replace(/^﻿/,"");
     var rows=[], row=[], field="", i=0, inQ=false, c, n=text.length;
@@ -118,7 +108,7 @@
     return {headers:headers, rows:out};
   }
 
-  /* ---------- compute derived datasets ---------- */
+  // Process CSV data into metrics
   function colEnabled(app){ return app+" Enabled Users"; }
   function colActive(app){ return app+" Active Users"; }
 
@@ -208,7 +198,7 @@
     };
   }
 
-  /* ---------- line chart (geometry + SVG + hover) ---------- */
+  // Line chart SVG generator and interactive crosshair tracker
   function lineGeom(data, opt){
     opt=opt||{};
     var W=opt.w||520, H=opt.h||190, pl=42, pr=12, pt=12, pb=26;
@@ -289,7 +279,7 @@
     box.addEventListener("mouseleave", leave);
   }
 
-  /* ---------- bar + donut ---------- */
+  // Bar and donut SVG chart templates
   function hBarChart(items, opt){
     opt=opt||{};
     var rowH=opt.rowH||26, gap=8, pl=opt.labelW||180, pr=54;
@@ -333,7 +323,7 @@
     }).join("");
   }
 
-  /* ---------- resizable, sortable table (same engine as the Viva board) ---------- */
+  // SortTable class definition
   function addResizer(th, handle, table){
     var startX=0, startW=0, active=false;
     handle.addEventListener("pointerdown", function(e){
@@ -525,7 +515,7 @@
     if(cl) cl.addEventListener("click", function(){ ui.panel.classList.add("hidden"); });
   };
 
-  /* ---------- renderers ---------- */
+  // Renderers
   function renderHeader(){
     var p=DATA.period, wd=DATA.windowDays;
     $("cpSubtitle").innerHTML = "Microsoft 365 Copilot adoption across The Mosaic Company &middot; rolling "+wd+"-day window";
@@ -694,7 +684,7 @@
     hasData = true;
   }
 
-  /* ---------- tabs ---------- */
+  // Tab navigation switching
   function initTabs(){
     var nav=$("cpTabs"); if(!nav) return;
     var btns=nav.querySelectorAll("button");
@@ -801,7 +791,7 @@
     });
   }
 
-  /* ---------- loading ---------- */
+  // Loading logic
   function fetchText(url){
     return fetch(url,{cache:"no-store"}).then(function(res){
       if(!res.ok) throw new Error(url+" ("+res.status+")");
@@ -838,7 +828,7 @@
     fetchAll().then(function(){ renderAll(); }).catch(function(err){ showFallback(err); });
   }
 
-  /* ---------- manual fallback (file:// or missing files) ---------- */
+  // Fallback uploader
   var fileMap = {};
   function nameToKey(fn){
     fn=fn.toLowerCase();
@@ -858,8 +848,7 @@
     updateChecklist();
     toggleBack();
   }
-  // Optional Copilot Chat / Agents exports — handled by CopilotExtras, never
-  // required to render the core board. Labels mirror its checklists.
+  // Optional Agent and Chat reports
   var OPTIONAL = [
     {k:"declAgents",  label:"Declarative agents — 30-day usage"},
     {k:"agents",      label:"All agents — inventory"},
@@ -916,7 +905,7 @@
     });
   }
 
-  /* ---------- expose boot for the product switcher ---------- */
+  // Module export
   function init(){ initTabs(); initControls(); initFallback(); }
   window.CopilotBoard = {
     booted:false,

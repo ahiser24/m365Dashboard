@@ -10,7 +10,7 @@
 <body>
 <div class="wrap">
 
-  <!-- GLOBAL APP BAR + PRODUCT SWITCHER -->
+  <!-- App navigation bar -->
   <div class="appbar">
     <div class="appbar-brand" id="homeLink" title="Back to app chooser">
       <span class="appbar-mark" aria-hidden="true">M365</span>
@@ -19,23 +19,28 @@
         <div class="appbar-sub">Usage Reports Analysis &middot; Andrew Hiser</div>
       </div>
     </div>
-    <div class="switcher" id="productSwitch" role="tablist" aria-label="Choose a Microsoft 365 app">
-      <button role="tab" data-product="home" aria-selected="true">
-        <span class="sw-dot home" aria-hidden="true"></span> Home
-      </button>
-      <button role="tab" data-product="viva" aria-selected="false">
-        <span class="sw-dot viva" aria-hidden="true"></span> Viva Engage
-      </button>
-      <button role="tab" data-product="copilot" aria-selected="false">
-        <span class="sw-dot copilot" aria-hidden="true"></span> Microsoft Copilot
-      </button>
-      <button role="tab" data-product="teams" aria-selected="false">
-        <span class="sw-dot teams" aria-hidden="true"></span> Microsoft Teams
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div class="switcher" id="productSwitch" role="tablist" aria-label="Choose a Microsoft 365 app">
+        <button role="tab" data-product="home" aria-selected="true">
+          <span class="sw-dot home" aria-hidden="true"></span> Home
+        </button>
+        <button role="tab" data-product="viva" aria-selected="false">
+          <span class="sw-dot viva" aria-hidden="true"></span> Viva Engage
+        </button>
+        <button role="tab" data-product="copilot" aria-selected="false">
+          <span class="sw-dot copilot" aria-hidden="true"></span> Microsoft Copilot
+        </button>
+        <button role="tab" data-product="teams" aria-selected="false">
+          <span class="sw-dot teams" aria-hidden="true"></span> Microsoft Teams
+        </button>
+      </div>
+      <button id="themeToggle" class="btn ghost" title="Toggle theme">
+        <span class="theme-icon">☀️</span>
       </button>
     </div>
   </div>
 
-  <!-- ================= HOME / APP CHOOSER ================= -->
+  <!-- Home landing page & dashboard chooser -->
   <div id="home-app" class="product-pane">
     <header class="app home">
       <div class="titles">
@@ -68,7 +73,7 @@
     </div>
   </div>
 
-  <!-- ================= VIVA ENGAGE ================= -->
+  <!-- Viva Engage section -->
   <div id="viva-app" class="product-pane hidden">
 
     <header class="app">
@@ -86,7 +91,7 @@
       </div>
     </header>
 
-    <!-- LOADING / FALLBACK -->
+    <!-- Fallback screen shown if data is missing or needs to be uploaded -->
     <div id="status">
       <div class="loadbox" id="loadingBox">
         <div class="spinner"></div>
@@ -111,7 +116,7 @@
       </div>
     </div>
 
-    <!-- DASHBOARD -->
+    <!-- Main dashboard content -->
     <div id="dash" class="hidden">
       <nav class="tabs" id="tabs" role="tablist">
         <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
@@ -208,7 +213,7 @@
     </footer>
   </div>
 
-  <!-- ================= MICROSOFT COPILOT ================= -->
+  <!-- Microsoft Copilot section -->
   <div id="cp-app" class="product-pane hidden">
 
     <header class="app cp">
@@ -226,7 +231,7 @@
       </div>
     </header>
 
-    <!-- LOADING / FALLBACK -->
+    <!-- Fallback screen for uploading Copilot reports -->
     <div id="cpStatus">
       <div class="loadbox" id="cpLoadingBox">
         <div class="spinner"></div>
@@ -254,7 +259,7 @@
       </div>
     </div>
 
-    <!-- DASHBOARD -->
+    <!-- Main dashboard content -->
     <div id="cpDash" class="hidden">
       <nav class="tabs" id="cpTabs" role="tablist">
         <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
@@ -449,7 +454,7 @@
     </footer>
   </div>
 
-  <!-- ================= MICROSOFT TEAMS ================= -->
+  <!-- Microsoft Teams section -->
   <div id="tm-app" class="product-pane hidden">
 
     <header class="app tm">
@@ -467,7 +472,7 @@
       </div>
     </header>
 
-    <!-- LOADING / FALLBACK -->
+    <!-- Fallback screen for uploading Teams user activity -->
     <div id="tmStatus">
       <div class="loadbox" id="tmLoadingBox">
         <div class="spinner"></div>
@@ -493,7 +498,7 @@
       </div>
     </div>
 
-    <!-- DASHBOARD -->
+    <!-- Main dashboard content -->
     <div id="tmDash" class="hidden">
       <nav class="tabs" id="tmTabs" role="tablist">
         <button role="tab" data-tab="overview" aria-selected="true">Overview</button>

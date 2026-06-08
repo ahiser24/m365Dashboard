@@ -1,13 +1,7 @@
 "use strict";
-/* Microsoft Teams adoption board.
-   Self-contained module: loads the single Teams user-activity export
-   (Teams_UserActivityUserDetail), computes leadership-facing datasets, and
-   renders into the #tm-app container. Element IDs are prefixed "tm" so this
-   can coexist with the Viva and Copilot boards on the same page. */
+// Teams dashboard loader and UI renderer
 (function(){
-  // The export shares a base name plus a period suffix. Microsoft's portal
-  // writes the suffix a few different ways ( _D180 , _'D180' , _180 ), so we
-  // probe several styles and auto-detect whichever window is present.
+  // Probe several filename suffix styles to auto-detect the period
   var FOLDER = "Usage%20Reports/";
   var BASE = "Teams_UserActivityUserDetail";
   var PERIODS = [30,60,90,180];
@@ -17,9 +11,9 @@
   var detectedPeriod = 0;
   var COLORS = ["var(--c1)","var(--c2)","var(--c3)","var(--c4)","var(--c5)","var(--c6)","var(--c7)","var(--c8)"];
   var RAW = {}, DATA = {}, usrTbl = null;
-  var hasData = false;   // true once a dashboard has rendered (enables "Back to current reports")
+  var hasData = false;   // Tracks if dashboard has loaded successfully
 
-  /* ---------- helpers ---------- */
+  // Helpers
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
@@ -33,7 +27,7 @@
   }
   function pct(a,b){ return b? Math.round(a/b*1000)/10 : 0; }
   function clip(s,n){ s=String(s); return s.length>n? s.slice(0,n-1)+"…" : s; }
-  // Friendly short name from a UPN (no Display Name column in this export).
+  // Extrapolate name from UPN since display name is missing
   function shortName(upn){
     var local=String(upn||"").split("@")[0];
     if(!local) return upn||"";
@@ -49,7 +43,7 @@
     return (Math.round(h*10)/10)+" h";
   }
 
-  /* ---------- floating tooltip (own element id so it never clashes) ---------- */
+  // Unique tooltip container for Teams charts
   var Tip = {
     el:null,
     ensure:function(){
@@ -67,7 +61,7 @@
     hide:function(){ if(this.el) this.el.style.display="none"; }
   };
 
-  /* ---------- robust CSV parser ---------- */
+  // CSV parser
   function parseCSV(text){
     text = text.replace(/^﻿/,"");
     var rows=[], row=[], field="", i=0, inQ=false, c, n=text.length;
@@ -96,7 +90,7 @@
     return {headers:headers, rows:out};
   }
 
-  /* ---------- compute derived datasets ---------- */
+  // Aggregate CSV rows into metrics
   function compute(){
     var rows = RAW.detail.rows;
     var users = rows.map(function(r){
@@ -159,7 +153,7 @@
     };
   }
 
-  /* ---------- bar + donut (data-tip driven hover) ---------- */
+  // Bar and donut SVG chart templates
   function hBarChart(items, opt){
     opt=opt||{};
     var rowH=opt.rowH||26, gap=8, pl=opt.labelW||180, pr=54;
@@ -203,15 +197,13 @@
     }).join("");
   }
 
-  /* ---------- resizable, sortable table (same engine as the other boards) ---------- */
+  // SortTable class definition
   function addResizer(th, handle, table){
     var startX=0, startW=0, active=false;
     handle.addEventListener("pointerdown", function(e){
       e.preventDefault(); e.stopPropagation();
       active=true; startX=e.clientX; startW=th.getBoundingClientRect().width;
-      // Freeze every other column to its current pixel width and let the table
-      // grow past its container, so widening one column scrolls (via the
-      // .tablewrap overflow) instead of squishing the rest.
+      // Explicit widths on other columns prevents squishing
       Array.prototype.forEach.call(table.querySelectorAll("thead th"), function(h){
         if(h===th) return;
         var cw=h.getBoundingClientRect().width;
@@ -394,7 +386,7 @@
     if(cl) cl.addEventListener("click", function(){ ui.panel.classList.add("hidden"); });
   };
 
-  /* ---------- renderers ---------- */
+  // Renderers
   function renderHeader(){
     var wd=DATA.windowDays;
     $("tmSubtitle").innerHTML = "Microsoft Teams usage across The Mosaic Company &middot; rolling "+wd+"-day window";
@@ -547,10 +539,7 @@
     hasData = true;
   }
 
-  /* ---------- add/replace files via the header Refresh button ---------- */
-  // Reveal the upload panel without discarding the rendered dashboard or the
-  // already-loaded files. When data is present we also expose a "Back" button so
-  // a mis-click can return to the current reports without re-uploading.
+  // Refresh controls and fallback uploader trigger
   function openUploader(){
     $("tmStatus").classList.remove("hidden");
     $("tmLoadingBox").classList.add("hidden");
@@ -570,7 +559,7 @@
     if(hasData) b.classList.remove("hidden"); else b.classList.add("hidden");
   }
 
-  /* ---------- tabs ---------- */
+  // Tab navigation
   function initTabs(){
     var nav=$("tmTabs"); if(!nav) return;
     var btns=nav.querySelectorAll("button");
@@ -631,7 +620,7 @@
     }
 
     var bb=$("tmBackBtn"); if(bb) bb.addEventListener("click",backToReports);
-    // hover tooltips for bar/donut, scoped to the Teams container
+    // Tooltip events scoped to Teams container
     var root=$("tm-app")||document;
     root.addEventListener("mousemove", function(e){
       var t = e.target.closest && e.target.closest("[data-tip]");
@@ -647,14 +636,14 @@
     });
   }
 
-  /* ---------- loading ---------- */
+  // Loading logic
   function fetchText(url){
     return fetch(url,{cache:"no-store"}).then(function(res){
       if(!res.ok) throw new Error(url+" ("+res.status+")");
       return res.text();
     });
   }
-  // Probe period (30/60/90/180) x suffix style ( _D180 / _'D180' / _180 ).
+  // Try to fetch CSV with varying period and suffix combinations
   function fetchAll(){
     detectedPeriod=0;
     var combos=[];
@@ -679,7 +668,7 @@
     fetchAll().then(function(){ renderAll(); }).catch(function(err){ showFallback(err); });
   }
 
-  /* ---------- manual fallback (file:// or missing file) ---------- */
+  // Fallback uploader
   var fileMap = {};
   function nameToKey(fn){
     fn=fn.toLowerCase();
@@ -724,7 +713,7 @@
     });
   }
 
-  /* ---------- expose boot for the product switcher ---------- */
+  // Module export
   function init(){ initTabs(); initControls(); initFallback(); }
   window.TeamsBoard = {
     booted:false,

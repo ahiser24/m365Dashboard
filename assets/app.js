@@ -1,10 +1,6 @@
 "use strict";
-/* Product switcher for the combined M365 Adoption board.
-   The page opens on a neutral Home chooser — no product loads until the user
-   picks one. Each product module (Viva, Copilot, Teams) exposes a lazy
-   window.*Board with a boot() that runs its loader exactly once, so selecting
-   a tab the first time triggers its fetch/upload flow and re-selecting it just
-   shows the already-loaded board. */
+// Handles tab switching between the dashboard panels (Home, Viva, Copilot, Teams).
+// Each product is lazy-loaded so we only fetch/boot it when clicked for the first time.
 (function(){
   function $(id){ return document.getElementById(id); }
 
@@ -23,14 +19,17 @@
 
   function show(product){
     if(!PANES[product]) product="home";
-    // toggle panes
+    
+    // Show the active pane and hide the others
     Object.keys(PANES).forEach(function(p){
       var el=$(PANES[p]); if(el) el.classList.toggle("hidden", p!==product);
     });
-    // keep both the top switcher and the home chooser tiles in sync
+    
+    // Keep switcher tabs and home grid tiles in sync
     syncAria("productSwitch", product);
     syncAria("appChooser", product);
-    // lazily boot the chosen product (no-op after the first time)
+    
+    // Boot the product dashboard if it hasn't loaded yet
     var b=board(product);
     if(b) b.boot();
     window.scrollTo(0,0);
@@ -50,13 +49,45 @@
     });
   }
 
+  function initTheme() {
+    var themeToggle = $("themeToggle");
+    if (!themeToggle) return;
+
+    function updateThemeUI(theme) {
+      var icon = theme === "dark" ? "☀️" : "🌙";
+      var title = theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode";
+      var iconEl = themeToggle.querySelector(".theme-icon");
+      if (iconEl) iconEl.textContent = icon;
+      themeToggle.title = title;
+    }
+
+    var savedTheme = localStorage.getItem("theme");
+    if (savedTheme) {
+      document.documentElement.setAttribute("data-theme", savedTheme);
+      updateThemeUI(savedTheme);
+    } else {
+      var isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      updateThemeUI(isDark ? "dark" : "light");
+    }
+
+    themeToggle.addEventListener("click", function() {
+      var current = document.documentElement.getAttribute("data-theme") || 
+                    (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      var next = current === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      localStorage.setItem("theme", next);
+      updateThemeUI(next);
+    });
+  }
+
   function init(){
     wire("productSwitch");
     wire("appChooser");
+    initTheme();
     var home=$("homeLink");
     if(home) home.addEventListener("click", function(){ show("home"); });
     
-    // Global click listener to close dropdowns
+    // Close dropdowns if the user clicks anywhere else
     document.addEventListener("click", function(e){
       if(!e.target.closest(".refresh-dropdown-container")){
         Array.prototype.forEach.call(document.querySelectorAll(".refresh-dropdown"), function(d){

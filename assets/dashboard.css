@@ -8,10 +8,14 @@
   --radius:14px;
 }
 @media (prefers-color-scheme: dark){
-  :root{
+  :root:not([data-theme="light"]){
     --bg:#0f1722; --panel:#16212e; --ink:#e7eef5; --muted:#9fb0c0; --line:#243343;
     --chip:#1c2a38; --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.35);
   }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1722; --panel:#16212e; --ink:#e7eef5; --muted:#9fb0c0; --line:#243343;
+  --chip:#1c2a38; --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 18px rgba(0,0,0,.35);
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
@@ -40,6 +44,10 @@ header.app p{margin:4px 0 0; opacity:.92; font-size:13.5px}
 .btn:hover{background:rgba(255,255,255,.22)}
 .btn.ghost{background:var(--panel); color:var(--ink); border:1px solid var(--line)}
 .btn.ghost:hover{border-color:var(--brand)}
+#themeToggle{
+  cursor:pointer; padding:0; border-radius:10px; display:inline-flex; align-items:center;
+  justify-content:center; width:36px; height:36px;
+}
 
 nav.tabs{display:flex; gap:6px; flex-wrap:wrap; margin:18px 0 14px}
 nav.tabs button{
@@ -91,9 +99,11 @@ tbody tr:hover{background:var(--chip)}
 .tag.public{background:#e6f4ee; color:#0b6e4f}
 .tag.private{background:#eef0fb; color:#4a3fb0}
 @media (prefers-color-scheme: dark){
-  .tag.public{background:#103a2b; color:#7fe3bf}
-  .tag.private{background:#241f4a; color:#bdb4ff}
+  :root:not([data-theme="light"]) .tag.public{background:#103a2b; color:#7fe3bf}
+  :root:not([data-theme="light"]) .tag.private{background:#241f4a; color:#bdb4ff}
 }
+:root[data-theme="dark"] .tag.public{background:#103a2b; color:#7fe3bf}
+:root[data-theme="dark"] .tag.private{background:#241f4a; color:#bdb4ff}
 .controls{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px}
 .controls input[type="search"],.controls select{
   padding:8px 11px; border:1px solid var(--line); border-radius:10px; background:var(--panel);
@@ -103,7 +113,7 @@ tbody tr:hover{background:var(--chip)}
 .muted{color:var(--muted)}
 .rowcount{font-size:12.5px; color:var(--muted)}
 
-/* resizable columns */
+/* Column resizing styles */
 table.resizable{table-layout:fixed; width:100%}
 table.resizable th{position:sticky; top:0; overflow:hidden}
 table.resizable th .thlabel{display:inline-block; max-width:calc(100% - 22px); overflow:hidden;
@@ -116,7 +126,7 @@ table.resizable td{overflow:hidden; text-overflow:ellipsis}
 .col-resizer:hover::before,.col-resizer.active::before{background:var(--brand); width:2px}
 table.resizing,table.resizing *{cursor:col-resize !important; user-select:none !important}
 
-/* funnel */
+/* Funnel layout for participation ladder */
 .funnel{display:flex; flex-direction:column; gap:8px; margin-top:6px}
 .funnel .step{display:flex; align-items:center; gap:10px}
 .funnel .lbl{width:120px; font-size:13px; color:var(--ink)}
@@ -125,7 +135,7 @@ table.resizing,table.resizing *{cursor:col-resize !important; user-select:none !
   padding-inline-end:10px; color:#fff; font-size:12.5px; font-weight:700; white-space:nowrap}
 .funnel .pct{width:64px; text-align:end; font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums}
 
-/* chart hover tooltip + crosshair */
+/* Tooltip and crosshair for interactive charts */
 .chartbox{position:relative}
 .crosshair{position:absolute; top:0; bottom:0; width:1px; background:var(--brand); opacity:.55;
   pointer-events:none; display:none; z-index:3}
@@ -139,7 +149,7 @@ table.resizing,table.resizing *{cursor:col-resize !important; user-select:none !
 #tip .tt-row .sw{width:9px; height:9px; border-radius:3px; display:inline-block; flex:none}
 #tip .tt-row .tt-val{margin-inline-start:auto; font-variant-numeric:tabular-nums; font-weight:600}
 
-/* loader / fallback */
+/* File dropzone, loaders, and checklists */
 #status{margin-top:18px}
 .loadbox{background:var(--panel); border:1px dashed var(--line); border-radius:var(--radius); padding:26px; text-align:center}
 .loadbox h2{margin:0 0 6px; font-size:18px}
@@ -156,9 +166,7 @@ footer.app{margin-top:26px; text-align:center; color:var(--muted); font-size:12p
 .filechecklist li{margin:3px 0}
 .ok{color:var(--brand2)} .pending{color:var(--muted)} .bad{color:var(--warn)}
 
-/* ===================== combined-app additions ===================== */
-
-/* global app bar + product switcher */
+/* Main app navigation header */
 .appbar{
   display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:16px;
   padding:14px 18px; margin-bottom:16px;
@@ -191,22 +199,22 @@ footer.app{margin-top:26px; text-align:center; color:var(--muted); font-size:12p
 .product-pane{display:block}
 .product-pane.hidden{display:none !important}
 
-/* Copilot pane uses an indigo/magenta accent so the two products read apart */
+/* Theme colors for the Copilot section */
 #cp-app{
   --brand:#7a3a8f; --brand2:#a83279;
 }
 header.app.cp{background:linear-gradient(120deg,#7a3a8f,#a83279)}
 
-/* product color dot (Copilot products table) */
+/* Tiny status/product dot indicator */
 .dot{width:10px; height:10px; border-radius:50%; display:inline-block; margin-inline-end:8px; vertical-align:baseline}
 
-/* inline adoption bar inside a table cell */
+/* Progress/adoption bar in table cells */
 .minibar{display:inline-block; width:84px; height:7px; border-radius:4px; background:var(--chip);
   overflow:hidden; vertical-align:middle; margin-inline-end:8px}
 .minibar > span{display:block; height:100%; border-radius:4px}
 .mbv{font-variant-numeric:tabular-nums; font-size:12.5px; color:var(--muted)}
 
-/* Copilot floating tooltip (mirrors #tip) */
+/* Custom tooltip positioner for Copilot charts */
 #cptip{position:fixed; z-index:9999; pointer-events:none; display:none; max-width:260px;
   background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:10px;
   box-shadow:var(--shadow); padding:8px 11px; font-size:12.5px; line-height:1.4}
@@ -215,13 +223,11 @@ header.app.cp{background:linear-gradient(120deg,#7a3a8f,#a83279)}
 #cptip .tt-row .sw{width:9px; height:9px; border-radius:3px; display:inline-block; flex:none}
 #cptip .tt-row .tt-val{margin-inline-start:auto; font-variant-numeric:tabular-nums; font-weight:600}
 
-/* ===================== Home chooser + Teams additions ===================== */
-
-/* switcher dots for the new tabs */
+/* Dot indicator styling for the switcher */
 .sw-dot.home{background:linear-gradient(120deg,var(--c2),var(--c6))}
 .sw-dot.teams{background:#5b5fc7}
 
-/* ---- Home / app chooser landing ---- */
+/* Splash landing page grid and tiles */
 header.app.home{background:linear-gradient(120deg,#3a4a63,#5566a3)}
 .chooser{margin-top:20px}
 .choice-grid{
@@ -248,13 +254,13 @@ header.app.home{background:linear-gradient(120deg,#3a4a63,#5566a3)}
 .choice-cta{margin-top:auto; font-size:13px; font-weight:600; color:var(--accent)}
 .choice:hover .choice-cta{color:var(--brand)}
 
-/* ---- Teams pane: indigo accent so it reads apart from Viva/Copilot ---- */
+/* Theme colors for the Teams section */
 #tm-app{
   --brand:#4b53bc; --brand2:#5b5fc7;
 }
 header.app.tm{background:linear-gradient(120deg,#4b53bc,#5b5fc7)}
 
-/* Teams floating tooltip (mirrors #tip) */
+/* Custom tooltip positioner for Teams charts */
 #tmtip{position:fixed; z-index:9999; pointer-events:none; display:none; max-width:260px;
   background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:10px;
   box-shadow:var(--shadow); padding:8px 11px; font-size:12.5px; line-height:1.4}
@@ -263,7 +269,7 @@ header.app.tm{background:linear-gradient(120deg,#4b53bc,#5b5fc7)}
 #tmtip .tt-row .sw{width:9px; height:9px; border-radius:3px; display:inline-block; flex:none}
 #tmtip .tt-row .tt-val{margin-inline-start:auto; font-variant-numeric:tabular-nums; font-weight:600}
 
-/* ---- Multi-row selection + side-by-side comparison (shared by all tables) ---- */
+/* Side-by-side row comparison table layout */
 th.selcol, td.selcol{width:34px; min-width:34px; text-align:center; padding-inline:6px}
 td.selcol input.rowsel{cursor:pointer; width:15px; height:15px; accent-color:var(--brand)}
 tr.selrow td{background:color-mix(in srgb, var(--brand) 9%, var(--panel))}
@@ -287,7 +293,7 @@ table.cmp-table .cmp-field{position:sticky; left:0; background:var(--panel); fon
   color:var(--muted); z-index:2}
 table.cmp-table thead .cmp-field{z-index:3}
 
-/* ---- Refresh Dropdown ---- */
+/* Dropdown menu for refreshing/replacing files */
 .refresh-dropdown-container {
   position: relative;
   display: inline-block;
