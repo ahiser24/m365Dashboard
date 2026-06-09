@@ -393,6 +393,9 @@
     this.built=false; this.thRow=null;
     this.selectable=this.opts.selectable!==false;
     this.selected={}; this.selOrder=[]; this.rowMap={}; this.cmpUI=null;
+    this.pageSize=50;
+    this.currentPage=1;
+    this.pagerEl=null;
   }
   SortTable.prototype.buildHead=function(){
     var self=this, thead=this.table.querySelector("thead");
@@ -447,6 +450,45 @@
       else th.removeAttribute("aria-sort");
     });
   };
+  SortTable.prototype.renderPager=function(total, start, end, numPages){
+    var infoText = total > 0 ? "Showing " + fmt(start + 1) + " to " + fmt(end) + " of " + fmt(total) + " entries" : "Showing 0 to 0 of 0 entries";
+    
+    var sizeSelect = '<div class="pagination-size">Show <select class="pager-size-select">' +
+      [25, 50, 100, 200].map(function(sz){
+        var sel = this.pageSize === sz ? " selected" : "";
+        return '<option value="' + sz + '"' + sel + '>' + sz + '</option>';
+      }, this).join("") +
+      '<option value="all"' + (this.pageSize === Infinity ? " selected" : "") + '>All</option>' +
+      '</select> entries</div>';
+      
+    var pageButtons = [];
+    if(numPages > 1){
+      var startPage = Math.max(1, this.currentPage - 2);
+      var endPage = Math.min(numPages, this.currentPage + 2);
+      if(startPage > 1){
+        pageButtons.push('<button class="btn pager-btn pager-page" data-p="1">1</button>');
+        if(startPage > 2) pageButtons.push('<span class="pager-ellipsis">…</span>');
+      }
+      for(var p = startPage; p <= endPage; p++){
+        var active = p === this.currentPage ? " active" : "";
+        pageButtons.push('<button class="btn pager-btn pager-page' + active + '" data-p="' + p + '">' + p + '</button>');
+      }
+      if(endPage < numPages){
+        if(endPage < numPages - 1) pageButtons.push('<span class="pager-ellipsis">…</span>');
+        pageButtons.push('<button class="btn pager-btn pager-page" data-p="' + numPages + '">' + numPages + '</button>');
+      }
+    }
+    
+    var controls = '<div class="pagination-controls">' +
+      '<button class="btn pager-btn pager-first" title="First Page"' + (this.currentPage <= 1 ? " disabled" : "") + '>&laquo;</button>' +
+      '<button class="btn pager-btn pager-prev" title="Previous Page"' + (this.currentPage <= 1 ? " disabled" : "") + '>&larr;</button>' +
+      '<span class="pager-pages">' + pageButtons.join("") + '</span>' +
+      '<button class="btn pager-btn pager-next" title="Next Page"' + (this.currentPage >= numPages || numPages <= 1 ? " disabled" : "") + '>&rarr;</button>' +
+      '<button class="btn pager-btn pager-last" title="Last Page"' + (this.currentPage >= numPages || numPages <= 1 ? " disabled" : "") + '>&raquo;</button>' +
+      '</div>';
+      
+    this.pagerEl.innerHTML = '<div class="pagination-info">' + infoText + '</div>' + controls + sizeSelect;
+  };
   SortTable.prototype.render=function(){
     if(!this.built) this.buildHead();
     var self=this, rows=this.opts.getRows()||[];
@@ -464,8 +506,14 @@
       });
     }
     var total=rows.length;
-    var max=this.opts.max||total;
-    var shown=rows.slice(0,max);
+    var numPages = Math.ceil(total / this.pageSize);
+    if(this.currentPage > numPages) this.currentPage = numPages;
+    if(this.currentPage < 1) this.currentPage = 1;
+    
+    var start = total > 0 ? (this.currentPage - 1) * this.pageSize : 0;
+    var end = Math.min(start + this.pageSize, total);
+    var shown = (this.pageSize === Infinity) ? rows : rows.slice(start, end);
+    
     this.rowMap={}; rows.forEach(function(r){ self.rowMap[self.keyOf(r)]=r; });
     var tbody=this.table.querySelector("tbody");
     tbody.innerHTML=shown.map(function(r){
@@ -479,6 +527,35 @@
     this.syncAria();
     if(this.opts.onCount) this.opts.onCount(total, shown.length);
     if(this.selectable) this.renderCompareBar();
+    
+    var wrap = this.table.closest ? this.table.closest(".tablewrap") : null;
+    if(wrap){
+      if(!this.pagerEl){
+        this.pagerEl = document.createElement("div");
+        this.pagerEl.className = "table-pagination";
+        wrap.parentNode.insertBefore(this.pagerEl, wrap.nextSibling);
+        
+        this.pagerEl.addEventListener("change", function(e){
+          if(e.target && e.target.classList.contains("pager-size-select")){
+            var val = e.target.value;
+            self.pageSize = val === "all" ? Infinity : parseInt(val, 10);
+            self.currentPage = 1;
+            self.render();
+          }
+        });
+        this.pagerEl.addEventListener("click", function(e){
+          var btn = e.target.closest("button.pager-btn");
+          if(!btn || btn.disabled) return;
+          if(btn.classList.contains("pager-first")) self.currentPage = 1;
+          else if(btn.classList.contains("pager-prev")) self.currentPage--;
+          else if(btn.classList.contains("pager-next")) self.currentPage++;
+          else if(btn.classList.contains("pager-last")) self.currentPage = numPages;
+          else if(btn.classList.contains("pager-page")) self.currentPage = parseInt(btn.dataset.p, 10);
+          self.render();
+        });
+      }
+      this.renderPager(total, start, end, numPages);
+    }
   };
 
   SortTable.prototype.keyOf=function(r){
@@ -657,7 +734,7 @@
       }});
     });
     usrTbl=new SortTable($("cpUsrTable"), cols, {
-      initSort:{key: rich?"prompts":"last", dir:-1}, max:300,
+      initSort:{key: rich?"prompts":"last", dir:-1},
       getRows:function(){
         var q=($("cpUsrSearch").value||"").toLowerCase().trim();
         return DATA.users.filter(function(u){
@@ -671,7 +748,7 @@
         });
       },
       onCount:function(total,shown){
-        $("cpUsrCount").textContent = fmt(total)+" people"+(total>shown?" (showing top "+shown+")":"");
+        $("cpUsrCount").textContent = fmt(total)+" people";
       }
     });
   }

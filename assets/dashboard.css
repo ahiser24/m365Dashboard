@@ -405,3 +405,92 @@ table.cmp-table thead .cmp-field{z-index:3}
   background: rgba(194, 65, 12, 0.08);
 }
 
+/* Table pagination styling */
+.table-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 8px 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  font-size: 13px;
+  color: var(--muted);
+}
+.pagination-info {
+  font-weight: 600;
+  color: var(--ink);
+}
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.pagination-controls button.pager-btn {
+  padding: 0 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  min-width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+.pagination-controls button.pager-btn:hover:not(:disabled) {
+  border-color: var(--brand);
+  background: var(--chip);
+}
+.pagination-controls button.pager-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.pagination-controls .pager-pages {
+  display: flex;
+  gap: 4px;
+}
+.pagination-controls button.pager-page {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--muted);
+}
+.pagination-controls button.pager-page.active {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+}
+.pagination-controls .pager-ellipsis {
+  padding: 0 4px;
+  font-size: 12px;
+  color: var(--muted);
+  user-select: none;
+}
+.pagination-size {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pagination-size select {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+.pagination-size select:focus {
+  border-color: var(--brand);
+}
+
+
