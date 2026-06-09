@@ -10,6 +10,21 @@
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
   function num(v){ var n=parseFloat(String(v==null?"":v).replace(/,/g,"")); return isFinite(n)?n:0; }
   function fmt(n){ n=Math.round(n); return n.toLocaleString("en-US"); }
+  function getUserField(row, possibleFields) {
+    if (!row) return "";
+    for (var i = 0; i < possibleFields.length; i++) {
+      if (row[possibleFields[i]] !== undefined) return row[possibleFields[i]];
+    }
+    var rowKeys = Object.keys(row);
+    for (var i = 0; i < possibleFields.length; i++) {
+      var target = possibleFields[i].toLowerCase().replace(/[^a-z0-9]/g, "");
+      for (var j = 0; j < rowKeys.length; j++) {
+        var key = rowKeys[j].toLowerCase().replace(/[^a-z0-9]/g, "");
+        if (key === target) return row[rowKeys[j]];
+      }
+    }
+    return "";
+  }
   function fmtShort(n){
     n=Math.round(n);
     if(Math.abs(n)>=1e6) return (n/1e6).toFixed(n%1e6?1:0)+"M";
@@ -281,14 +296,20 @@
   // Declarative Agent usage analysis
   function computeDecl(){
     return RAW.declAgents.rows.map(function(r){
-      var lic=num(r["Active users (licensed)"]), unlic=num(r["Active users (unlicensed)"]);
+      var lic = num(getUserField(r, ["Active users (licensed)", "Active users licensed", "licensedActiveUsers"]));
+      var unlic = num(getUserField(r, ["Active users (unlicensed)", "Active users unlicensed", "unlicensedActiveUsers"]));
+      var id = getUserField(r, ["Agent ID", "AgentID", "id"]);
+      var name = (getUserField(r, ["Agent name", "AgentName", "name"]) || "").trim() || "(unnamed)";
+      var creator = getUserField(r, ["Creator type", "CreatorType", "creator"]);
+      var responses = num(getUserField(r, ["Responses sent to users", "responses"]));
+      var last = getUserField(r, ["Last activity date (UTC)", "Last Activity Date", "lastActivityDate"]);
       return {
-        id:r["Agent ID"]||"",
-        name:(r["Agent name"]||"").trim()||"(unnamed)",
-        creator:r["Creator type"]||"",
-        lic:lic, unlic:unlic, active:lic+unlic,
-        responses:num(r["Responses sent to users"]),
-        last:r["Last activity date (UTC)"]||""
+        id: id,
+        name: name,
+        creator: creator,
+        lic: lic, unlic: unlic, active: lic+unlic,
+        responses: responses,
+        last: last
       };
     });
   }
@@ -336,18 +357,29 @@
   // Exhaustive Agent inventory analytics
   function computeAll(){
     return RAW.agents.rows.map(function(r){
+      var name = (getUserField(r, ["Name", "name"]) || "").trim() || "(unnamed)";
+      var status = getUserField(r, ["Status", "status"]);
+      var channel = getUserField(r, ["Channel", "channel"]);
+      var created = (getUserField(r, ["Date created", "DateCreated", "created"]) || "").slice(0, 10);
+      var modified = (getUserField(r, ["Last Modified", "LastModified", "modified"]) || "").slice(0, 10);
+      var publisher = getUserField(r, ["Publisher", "publisher"]);
+      var pubType = getUserField(r, ["Publisher Type", "PublisherType", "publisherType"]);
+      var version = getUserField(r, ["Version", "version"]);
+      var owner = getUserField(r, ["Owner", "owner"]);
+      var platform = getUserField(r, ["Platform", "platform"]);
+      var sensitivity = getUserField(r, ["Sensitivity", "sensitivity"]);
       return {
-        name:(r["Name"]||"").trim()||"(unnamed)",
-        status:r["Status"]||"",
-        channel:r["Channel"]||"",
-        created:(r["Date created"]||"").slice(0,10),
-        modified:(r["Last Modified"]||"").slice(0,10),
-        publisher:r["Publisher"]||"",
-        pubType:r["Publisher Type"]||"",
-        version:r["Version"]||"",
-        owner:r["Owner"]||"",
-        platform:r["Platform"]||"",
-        sensitivity:r["Sensitivity"]||""
+        name: name,
+        status: status,
+        channel: channel,
+        created: created,
+        modified: modified,
+        publisher: publisher,
+        pubType: pubType,
+        version: version,
+        owner: owner,
+        platform: platform,
+        sensitivity: sensitivity
       };
     });
   }
@@ -402,10 +434,14 @@
     // Select the longest reporting period from row list
     var best=null;
     parsed.rows.forEach(function(r){
-      var p=num(r["Report period"]);
+      var p = num(getUserField(r, ["Report period", "reportPeriod"]));
       if(!best || p>best.period){
-        var o={ period:p, refresh:r["Report refresh date"]||"", any:num(r[anyCol]), app:{} };
-        EDP_APPS.forEach(function(a){ o.app[a.key]=num(r[a.key+appSuffix]); });
+        var refresh = getUserField(r, ["Report refresh date", "reportRefreshDate", "refreshDate"]);
+        var anyVal = num(getUserField(r, [anyCol]));
+        var o={ period:p, refresh:refresh, any:anyVal, app:{} };
+        EDP_APPS.forEach(function(a){
+          o.app[a.key] = num(getUserField(r, [a.key + appSuffix, a.short + appSuffix]));
+        });
         best=o;
       }
     });
@@ -447,16 +483,31 @@
   // Copilot Chat per-person usage details
   function computeChatUsers(){
     return RAW.chatUsers.rows.map(function(r){
+      var upn = getUserField(r, ["User principal name", "userPrincipalName", "upn"]);
+      var name = getUserField(r, ["Display name", "displayName"]) || upn;
+      var period = num(getUserField(r, ["Report period", "reportPeriod"]));
+      var prompts = num(getUserField(r, ["Prompts submitted", "promptsSubmitted", "prompts"]));
+      var days = num(getUserField(r, ["Active usage days", "activeUsageDays", "days"]));
+      var last = getUserField(r, ["Last activity date", "lastActivityDate", "last"]);
       var o={
-        name:r["Display name"]||r["User principal name"]||"",
-        upn:r["User principal name"]||"",
-        period:num(r["Report period"]),
-        prompts:num(r["Prompts submitted"]),
-        days:num(r["Active usage days"]),
-        last:r["Last activity date"]||"",
+        name: name,
+        upn: upn,
+        period: period,
+        prompts: prompts,
+        days: days,
+        last: last,
         app:{}
       };
-      EDP_APPS.forEach(function(a){ o.app[a.key]=r["Last activity date of "+a.key+" (UTC)"]||""; });
+      EDP_APPS.forEach(function(a){
+        o.app[a.key] = getUserField(r, [
+          "Last activity date of " + a.key + " (UTC)",
+          "Last activity date of " + a.short + " (UTC)",
+          a.key + " Last Activity Date",
+          a.short + " Last Activity Date",
+          a.key,
+          a.short
+        ]);
+      });
       return o;
     });
   }

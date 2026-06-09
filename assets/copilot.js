@@ -50,8 +50,23 @@
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
-  function num(v){ var n=parseFloat(v); return isFinite(n)?n:0; }
+  function num(v){ var n=parseFloat(String(v==null?"":v).replace(/,/g,"")); return isFinite(n)?n:0; }
   function fmt(n){ n=Math.round(n); return n.toLocaleString("en-US"); }
+  function getUserField(row, possibleFields) {
+    if (!row) return "";
+    for (var i = 0; i < possibleFields.length; i++) {
+      if (row[possibleFields[i]] !== undefined) return row[possibleFields[i]];
+    }
+    var rowKeys = Object.keys(row);
+    for (var i = 0; i < possibleFields.length; i++) {
+      var target = possibleFields[i].toLowerCase().replace(/[^a-z0-9]/g, "");
+      for (var j = 0; j < rowKeys.length; j++) {
+        var key = rowKeys[j].toLowerCase().replace(/[^a-z0-9]/g, "");
+        if (key === target) return row[rowKeys[j]];
+      }
+    }
+    return "";
+  }
   function fmtShort(n){
     n=Math.round(n);
     if(Math.abs(n)>=1e6) return (n/1e6).toFixed(n%1e6?1:0)+"M";
@@ -115,21 +130,30 @@
   function compute(){
     /* Trend: one row per day. Each app contributes an enabled/active pair. */
     var trend = RAW.trend.rows.map(function(r){
-      var o={ date:r["reportDate"]||r["Report Date"]||"", period:num(r["reportPeriod"]||r["Report Period"]),
-              allEnabled:num(r["All Enabled Users"]), allActive:num(r["All Active Users"]), app:{} };
-      APPS.forEach(function(a){ o.app[a.key]={ enabled:num(r[colEnabled(a.key)]), active:num(r[colActive(a.key)]) }; });
+      var date = getUserField(r, ["reportDate", "Report Date"]);
+      var period = num(getUserField(r, ["reportPeriod", "Report Period"]));
+      var allEnabled = num(getUserField(r, ["All Enabled Users", "Any App Enabled Users"]));
+      var allActive = num(getUserField(r, ["All Active Users", "Any App Active Users"]));
+      var o={ date:date, period:period, allEnabled:allEnabled, allActive:allActive, app:{} };
+      APPS.forEach(function(a){
+        o.app[a.key]={
+          enabled: num(getUserField(r, [a.key + " Enabled Users", "Microsoft " + a.key + " Enabled Users", a.short + " Enabled Users"])),
+          active: num(getUserField(r, [a.key + " Active Users", "Microsoft " + a.key + " Active Users", a.short + " Active Users"]))
+        };
+      });
       return o;
     }).filter(function(r){return r.date;}).sort(function(a,b){return a.date<b.date?-1:1;});
 
     /* By-product snapshot: the most recent (or only) row of the adoption export. */
     var prodRow = RAW.byProduct.rows.length? RAW.byProduct.rows[RAW.byProduct.rows.length-1] : {};
     var snapshot = APPS.map(function(a){
-      return { key:a.key, short:a.short, color:a.color,
-               enabled:num(prodRow[colEnabled(a.key)]), active:num(prodRow[colActive(a.key)]) };
+      var enabled = num(getUserField(prodRow, [a.key + " Enabled Users", "Microsoft " + a.key + " Enabled Users", a.short + " Enabled Users"]));
+      var active = num(getUserField(prodRow, [a.key + " Active Users", "Microsoft " + a.key + " Active Users", a.short + " Active Users"]));
+      return { key:a.key, short:a.short, color:a.color, enabled:enabled, active:active };
     }).filter(function(s){ return s.enabled>0 || s.active>0; });
-    var allEnabledSnap = num(prodRow["All Enabled Users"]);
-    var allActiveSnap  = num(prodRow["All Active Users"]);
-    var refresh = prodRow["Report Refresh Date"] || (RAW.trend.rows[0]&&RAW.trend.rows[0]["reportDate"]) || "";
+    var allEnabledSnap = num(getUserField(prodRow, ["All Enabled Users", "Any App Enabled Users"]));
+    var allActiveSnap  = num(getUserField(prodRow, ["All Active Users", "Any App Active Users"]));
+    var refresh = getUserField(prodRow, ["Report Refresh Date", "refreshDate"]) || getUserField(RAW.trend.rows[0]||{}, ["reportDate", "Report Date"]) || "";
 
     /* Per-app average / peak daily active, from the trend file (clearly Copilot usage). */
     var appStats = APPS.map(function(a){
@@ -156,14 +180,17 @@
     if(usersRich){
       userApps = RICH_APPS.map(function(a){ return {key:a.key, short:a.short, color:a.color}; });
       users = RAW.userDetailV4.rows.map(function(r){
-        var u={ name:r["Display Name"]||r["User Principal Name"]||"",
-                upn:r["User Principal Name"]||"",
-                last:r["Last Activity Date"]||"",
-                prompts:num(r["Prompts submitted for All Apps"]),
-                promptsWork:num(r["Prompts submitted for Copilot Chat (work)"]),
-                promptsWeb:num(r["Prompts submitted for Copilot Chat (web)"]),
-                days:num(r["Active Usage Days for All Apps"]), app:{} };
-        RICH_APPS.forEach(function(a){ u.app[a.key]=r[a.col]||""; });
+        var upn = getUserField(r, ["User Principal Name", "userPrincipalName"]);
+        var name = getUserField(r, ["Display Name", "displayName"]) || upn;
+        var last = getUserField(r, ["Last Activity Date", "lastActivityDate"]);
+        var prompts = num(getUserField(r, ["Prompts submitted for All Apps", "promptsAllApps", "Prompts submitted"]));
+        var promptsWork = num(getUserField(r, ["Prompts submitted for Copilot Chat (work)", "promptsWork"]));
+        var promptsWeb = num(getUserField(r, ["Prompts submitted for Copilot Chat (web)", "promptsWeb"]));
+        var days = num(getUserField(r, ["Active Usage Days for All Apps", "activeUsageDaysAllApps", "Active usage days"]));
+        var u={ name:name, upn:upn, last:last, prompts:prompts, promptsWork:promptsWork, promptsWeb:promptsWeb, days:days, app:{} };
+        RICH_APPS.forEach(function(a){
+          u.app[a.key] = getUserField(r, [a.col, a.key + " Last Activity Date", a.short + " Last Activity Date", a.key, a.short]);
+        });
         return u;
       }).filter(function(u){ return u.name || u.upn; });
       var tp=0, td=0, topU=null;
@@ -173,9 +200,15 @@
     } else {
       userApps = APPS.filter(function(a){return a.det;}).map(function(a){ return {key:a.key, short:a.short, color:a.color}; });
       users = RAW.userDetail.rows.map(function(r){
-        var u={ name:r["displayName"]||r["userPrincipalName"]||"", upn:r["userPrincipalName"]||"",
-                last:r["lastActivityDate"]||"", prompts:0, days:0, app:{} };
-        APPS.forEach(function(a){ if(a.det) u.app[a.key]=r[a.det]||""; });
+        var upn = getUserField(r, ["userPrincipalName", "User Principal Name"]);
+        var name = getUserField(r, ["displayName", "Display Name"]) || upn;
+        var last = getUserField(r, ["lastActivityDate", "Last Activity Date"]);
+        var u={ name:name, upn:upn, last:last, prompts:0, days:0, app:{} };
+        APPS.forEach(function(a){
+          if(a.det) {
+            u.app[a.key] = getUserField(r, [a.det, a.key + " Last Activity Date", a.short + " Last Activity Date", a.key, a.short]);
+          }
+        });
         return u;
       });
     }
