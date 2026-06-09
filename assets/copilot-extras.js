@@ -189,7 +189,12 @@
     });
   };
   SortTable.prototype.renderPager=function(total, start, end, numPages){
-    var infoText = total > 0 ? "Showing " + fmt(start + 1) + " to " + fmt(end) + " of " + fmt(total) + " entries" : "Showing 0 to 0 of 0 entries";
+    var infoText = "";
+    if(this.pageSize === Infinity){
+      infoText = total > 0 ? "Showing all " + fmt(total) + " entries" : "Showing 0 entries";
+    } else {
+      infoText = total > 0 ? "Showing " + fmt(start + 1) + " to " + fmt(end) + " of " + fmt(total) + " entries" : "Showing 0 to 0 of 0 entries";
+    }
     
     var sizeSelect = '<div class="pagination-size">Show <select class="pager-size-select">' +
       [25, 50, 100, 200].map(function(sz){
@@ -244,12 +249,12 @@
       });
     }
     var total=rows.length;
-    var numPages = Math.ceil(total / this.pageSize);
+    var numPages = this.pageSize === Infinity ? 1 : Math.ceil(total / this.pageSize);
     if(this.currentPage > numPages) this.currentPage = numPages;
     if(this.currentPage < 1) this.currentPage = 1;
     
-    var start = total > 0 ? (this.currentPage - 1) * this.pageSize : 0;
-    var end = Math.min(start + this.pageSize, total);
+    var start = (total > 0 && this.pageSize !== Infinity) ? (this.currentPage - 1) * this.pageSize : 0;
+    var end = this.pageSize === Infinity ? total : Math.min(start + this.pageSize, total);
     var shown = (this.pageSize === Infinity) ? rows : rows.slice(start, end);
     
     this.rowMap={}; rows.forEach(function(r){ self.rowMap[self.keyOf(r)]=r; });
