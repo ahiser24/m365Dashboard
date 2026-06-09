@@ -1,75 +1,62 @@
 <#
 .SYNOPSIS
-    Downloads Microsoft 365 usage reports (Copilot, Viva Engage, Teams) via Microsoft Graph and exports to CSV/JSON.
-    Additional Usage Reports to download manually:
-    - Copilot
-      - Copilot usage details
-    - Copilot Chat
-      -Adoption by app
-      - Prompts submitted by app
-      - Usage Details
-    - Agents
-      - Usage details for Agents
-    All Agents:
-      -Export Agent Registry
+    Downloads Microsoft 365 usage reports (Copilot, Viva Engage, Teams, SharePoint, OneDrive, Exchange) via Microsoft Graph.
 
 .DESCRIPTION
-    - Connects to Microsoft Graph using app-only authentication (Client Secret Credential)
-    - Runs selected report groups:
-        * Copilot (beta reports -> JSON + CSV formatting)
-        * Viva Engage (Yammer) reports -> CSV
-        * Teams user activity detail -> CSV
-    - Exports into a consistent folder structure under a root output directory.
+    - Uses app-only authentication (client secret)
+    - Exports CSV (and JSON where applicable)
+    - Deterministic folder + filename structure
+    - Teams: runs ALL available Teams usage report cmdlets found in Microsoft.Graph.Reports
+    - Copilot: runs your known beta endpoints + attempts any additional Copilot beta report cmdlets if present
 
-.PREREQS
-    Install-Module Microsoft.Graph -Scope CurrentUser
-    Install-Module Microsoft.Graph.Reports -Scope CurrentUser
-    Install-Module Microsoft.Graph.Beta.Reports -Scope CurrentUser
+.REQUIRES
+    Microsoft.Graph.Authentication
+    Microsoft.Graph.Reports
+    Microsoft.Graph.Beta.Reports (optional but recommended for extra Copilot cmdlets)
 
-    Create an App Registration for Microsoft Graph access.
-
-    .NOTES
-    Secret is loaded from:
-        $env:USERPROFILE\graph-client-secret.xml
-    Create the secret xml if running locally:
-        "YOUR_SECRET" | ConvertTo-SecureString -AsPlainText -Force | Export-Clixml -Path "$env:USERPROFILE\graph-client-secret.xml"
+.PERMISSIONS (Application)
+    Reports.Read.All
 #>
-
 
 [CmdletBinding()]
 param(
     # App registration details
-    [Parameter()]
-    [string]$TenantId = "INSERT TENANT ID",
-
-    [Parameter()]
-    [string]$ClientId = "INSERT CLIENT ID",
-
-    # Secret file path
-    [Parameter()]
+    [string]$TenantId   = "1273caf7-13b7-4a89-b44a-3967d45ba0a9",
+    [string]$ClientId   = "e458a67c-2643-4440-8ed0-01e01cb4b697",
     [string]$SecretPath = "$env:USERPROFILE\graph-client-secret.xml",
 
-    # Report period
-    [Parameter()]
-    [ValidateSet("D7","D30","D60","D90","D180")]
+    # Report period (Graph-supported)
+    [ValidateSet("D7","D30","D90","D180")]
     [string]$Period = "D30",
 
     # Output root
-    [Parameter()]
     [string]$OutputRoot = "C:\Reports",
 
-    # Choose which report sets to run
-    [Parameter()]
+    # Workload switches
     [switch]$Copilot,
-
-    [Parameter()]
     [switch]$VivaEngage,
-
-    [Parameter()]
     [switch]$Teams,
+    [switch]$SharePoint,
+    [switch]$OneDrive,
+    [switch]$Exchange,
 
-    # If none chosen, run all
-    [Parameter()]
+    # Granular SharePoint switches (optional)
+    [switch]$SPSites,
+    [switch]$SPFiles,
+    [switch]$SPStorage,
+    [switch]$SPPages,
+    [switch]$SPActivity,
+
+    # Granular OneDrive switches (optional)
+    [switch]$ODUsage,
+    [switch]$ODActivity,
+
+    # Granular Exchange switches (optional)
+    [switch]$EXEmailActivity,
+    [switch]$EXEmailAppUsage,
+    [switch]$EXMailboxUsage,
+
+    # Run everything
     [switch]$All
 )
 
@@ -81,7 +68,6 @@ function Ensure-Directory {
 }
 
 function Connect-GraphApp {
-    [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$TenantId,
         [Parameter(Mandatory)][string]$ClientId,
@@ -89,223 +75,517 @@ function Connect-GraphApp {
     )
 
     if (-not (Test-Path $SecretPath)) {
-        throw "Secret file not found at: $SecretPath"
+        throw "Secret file not found: $SecretPath"
     }
 
-    # Load encrypted secret from file
-    $secure = Import-Clixml -Path $SecretPath
+    $secure = Import-Clixml $SecretPath
+    $cred   = New-Object PSCredential ($ClientId, $secure)
 
-    # Create PSCredential (username is ClientId for this pattern)
-    $appCred = New-Object System.Management.Automation.PSCredential ($ClientId, $secure)
-
-    # Connect once
-    Connect-MgGraph -TenantId $TenantId -ClientSecretCredential $appCred -NoWelcome | Out-Null
+    Connect-MgGraph -TenantId $TenantId -ClientSecretCredential $cred -NoWelcome | Out-Null
 }
 
-#endregion Helper Functions
-
-#region Copilot Reports (Beta endpoints)
-
-function Invoke-CopilotReports {
+function Export-GraphReportCsv {
+    <#
+      Calls a Graph Reports endpoint that returns CSV and writes it to a file.
+      Skips missing endpoints gracefully.
+    #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][ValidateSet("D7","D30","D60","D90","D180")][string]$Period,
-        [Parameter(Mandatory)][string]$OutputPath
+        [Parameter(Mandatory)][string]$EndpointName,
+        [Parameter(Mandatory)][string]$Period,
+        [Parameter(Mandatory)][string]$OutFile
     )
 
-    Ensure-Directory -Path $OutputPath
+    $uri = "https://graph.microsoft.com/v1.0/reports/$EndpointName(period='$Period')"
 
+    try {
+        Invoke-MgGraphRequest -Method GET -Uri $uri -OutputFilePath $OutFile
+        Write-Host "  ✔ $([IO.Path]::GetFileName($OutFile))" -ForegroundColor DarkGreen
+        return $true
+    }
+    catch {
+        $msg = $_.Exception.Message
+        if ($msg -match "Resource not found for the segment" -or $msg -match "404" -or $msg -match "BadRequest") {
+            Write-Warning "Skipped (not supported in tenant/API): $EndpointName"
+            return $false
+        }
+        Write-Warning "Failed exporting $EndpointName : $msg"
+        return $false
+    }
+}
+
+function Invoke-ReportCmdletsByPattern {
+    <#
+      Runs *all* report cmdlets in a given module that:
+        - match name pattern(s)
+        - have a -Period parameter
+      Output handling:
+        - If cmdlet supports -OutFile => use it
+        - Else capture output and write to file (best-effort)
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ModuleName,
+        [Parameter(Mandatory)][string[]]$NamePatterns,
+        [Parameter(Mandatory)][ValidateSet("D7","D30","D90","D180")][string]$Period,
+        [Parameter(Mandatory)][string]$OutputPath,
+        [Parameter(Mandatory)][string]$FilePrefix
+    )
+
+    Ensure-Directory $OutputPath
+
+    $cmds = foreach ($pat in $NamePatterns) {
+        Get-Command -Module $ModuleName -Name $pat -ErrorAction SilentlyContinue | Sort-Object Name -Unique
+     }
+    if (-not $cmds) {
+        Write-Warning "No commands matched patterns in module [$ModuleName]: $($NamePatterns -join ', ')"
+        return
+    }
+
+    foreach ($c in $cmds) {
+        # Only run cmdlets that accept -Period
+        if (-not $c.Parameters.ContainsKey("Period")) { continue }
+
+        $safeName = ($c.Name -replace '[^A-Za-z0-9]+','_')
+        $outFile  = Join-Path $OutputPath ("{0}{1}_{2}.csv" -f $FilePrefix, $safeName, $Period)
+
+        try {
+            if ($c.Parameters.ContainsKey("OutFile")) {
+                & $c.Name -Period $Period -OutFile $outFile -ErrorAction Stop | Out-Null
+                Write-Host "  ✔ $([IO.Path]::GetFileName($outFile))" -ForegroundColor DarkGreen
+            }
+            else {
+                # Best-effort: capture output and save
+                $result = & $c.Name -Period $Period -ErrorAction Stop
+                if ($null -ne $result) {
+                    # If result is a string (CSV), write as-is; otherwise export objects to CSV
+                    if ($result -is [string]) {
+                        $result | Out-File -FilePath $outFile -Encoding utf8
+                    }
+                    else {
+                        $result | Export-Csv -Path $outFile -NoTypeInformation
+                    }
+                    Write-Host "  ✔ $([IO.Path]::GetFileName($outFile))" -ForegroundColor DarkGreen
+                }
+                else {
+                    Write-Warning "Cmdlet returned no output: $($c.Name)"
+                }
+            }
+        }
+        catch {
+            Write-Warning "Failed running $($c.Name): $($_.Exception.Message)"
+        }
+    }
+}
+
+#endregion
+
+#region Copilot Reports (Beta)
+
+function Invoke-CopilotReports {
+    param(
+        [ValidateSet("D7","D30","D90","D180")]
+        [string]$Period,
+        [string]$OutputPath
+    )
+
+    Ensure-Directory $OutputPath
     $ProgressPreference = 'SilentlyContinue'
 
-    # --- Beta report endpoints (JSON) ---
+    # Your known Copilot beta endpoints (JSON -> CSV formatting)
     $u1 = "https://graph.microsoft.com/beta/reports/getMicrosoft365CopilotUserCountSummary(period='$Period')`?$format=application/json"
     $u2 = "https://graph.microsoft.com/beta/reports/getMicrosoft365CopilotUserCountTrend(period='$Period')`?$format=application/json"
     $u3 = "https://graph.microsoft.com/beta/reports/getMicrosoft365CopilotUsageUserDetail(period='$Period')`?$format=application/json"
 
-    $json1 = Join-Path $OutputPath "CopilotAdoptionByProduct_$Period.json"
-    $json2 = Join-Path $OutputPath "CopilotAdoptionTrend_$Period.json"
-    $json3 = Join-Path $OutputPath "CopilotUsageUserDetail_$Period.json"
+    $j1 = Join-Path $OutputPath "CopilotAdoptionByProduct_$Period.json"
+    $j2 = Join-Path $OutputPath "CopilotAdoptionTrend_$Period.json"
+    $j3 = Join-Path $OutputPath "CopilotUsageUserDetail_$Period.json"
 
-    Invoke-MgGraphRequest -Method GET -Uri $u1 -OutputFilePath $json1
-    Invoke-MgGraphRequest -Method GET -Uri $u2 -OutputFilePath $json2
-    Invoke-MgGraphRequest -Method GET -Uri $u3 -OutputFilePath $json3
+    Invoke-MgGraphRequest -Uri $u1 -OutputFilePath $j1
+    Invoke-MgGraphRequest -Uri $u2 -OutputFilePath $j2
+    Invoke-MgGraphRequest -Uri $u3 -OutputFilePath $j3
 
-    # --- Format u1 -> CSV ---
-    $obj1 = Get-Content $json1 -Raw | ConvertFrom-Json
+    # Format u1 -> CSV (match Script #1 fields + handle value as object OR array)
+    $obj1 = Get-Content $j1 -Raw | ConvertFrom-Json
 
-    # Defensive: handle if value is missing/unexpected
-    $v = $obj1.value
-    $adopt = $v.adoptionByProduct
-
-    $formatted1 = [PSCustomObject]@{
-        "Report Refresh Date"                    = $v.reportRefreshDate
-        "Report Period"                          = $adopt.reportPeriod
-        "Teams Enabled Users"                    = $adopt.microsoftTeamsEnabledUsers
-        "Teams Active Users"                     = $adopt.microsoftTeamsActiveUsers
-        "Word Enabled Users"                     = $adopt.wordEnabledUsers
-        "Word Active Users"                      = $adopt.wordActiveUsers
-        "PowerPoint Enabled Users"               = $adopt.powerPointEnabledUsers
-        "PowerPoint Active Users"                = $adopt.powerPointActiveUsers
-        "Outlook Enabled Users"                  = $adopt.outlookEnabledUsers
-        "Outlook Active Users"                   = $adopt.outlookActiveUsers
-        "Excel Enabled Users"                    = $adopt.excelEnabledUsers
-        "Excel Active Users"                     = $adopt.excelActiveUsers
-        "OneNote Enabled Users"                  = $adopt.oneNoteEnabledUsers
-        "OneNote Active Users"                   = $adopt.oneNoteActiveUsers
-        "Loop Enabled Users"                     = $adopt.loopEnabledUsers
-        "Loop Active Users"                      = $adopt.loopActiveUsers
-        "All Enabled Users"                      = $adopt.anyAppEnabledUsers
-        "All Active Users"                       = $adopt.anyAppActiveUsers
-        "Edge Enabled Users"                     = ""
-        "Edge Active Users"                      = ""
-        "Microsoft 365 Copilot (app) Enabled Users" = ""
-        "Microsoft 365 Copilot (app) Active Users"  = ""
+    # Some tenants return .value as an object, others as a single-element array
+    $val = $obj1.value
+    if ($val -is [System.Collections.IEnumerable] -and $val.GetType().Name -ne 'PSCustomObject') {
+        $val = $val | Select-Object -First 1
     }
 
-    $formatted1 | Export-Csv (Join-Path $OutputPath "CopilotAdoptionByProduct_$Period.csv") -NoTypeInformation
+    $ad = $val.adoptionByProduct
 
-    # --- Format u2 -> CSV ---
-    $obj2 = Get-Content $json2 -Raw | ConvertFrom-Json
-    $records = $obj2.value.adoptionByDate
+    $formattedU1 = [PSCustomObject]@{
+        "Report Refresh Date"                    = $val.reportRefreshDate
+        "Report Period"                          = $ad.reportPeriod
+        "Teams Enabled Users"                    = $ad.microsoftTeamsEnabledUsers
+        "Teams Active Users"                     = $ad.microsoftTeamsActiveUsers
+        "Word Enabled Users"                     = $ad.wordEnabledUsers
+        "Word Active Users"                      = $ad.wordActiveUsers
+        "PowerPoint Enabled Users"               = $ad.powerPointEnabledUsers
+        "PowerPoint Active Users"                = $ad.powerPointActiveUsers
+        "Outlook Enabled Users"                  = $ad.outlookEnabledUsers
+        "Outlook Active Users"                   = $ad.outlookActiveUsers
+        "Excel Enabled Users"                    = $ad.excelEnabledUsers
+        "Excel Active Users"                     = $ad.excelActiveUsers
+        "OneNote Enabled Users"                  = $ad.oneNoteEnabledUsers
+        "OneNote Active Users"                   = $ad.oneNoteActiveUsers
+        "Loop Enabled Users"                     = $ad.loopEnabledUsers
+        "Loop Active Users"                      = $ad.loopActiveUsers
+        "All Enabled Users"                      = $ad.anyAppEnabledUsers
+        "All Active Users"                       = $ad.anyAppActiveUsers
+        "Edge Enabled Users"                     = "" # not present yet
+        "Edge Active Users"                      = "" # not present yet
+        "Microsoft 365 Copilot (app) Enabled Users" = "" # not present yet
+        "Microsoft 365 Copilot (app) Active Users"  = "" # not present yet
+    }
 
-    $formatted2 = $records | Select-Object `
-        reportDate,
-        @{Name="reportPeriod"; Expression={ $obj2.value.reportPeriod }},
-        @{Name="Teams Enabled Users"; Expression={ $_.microsoftTeamsEnabledUsers }},
-        @{Name="Teams Active Users"; Expression={ $_.microsoftTeamsActiveUsers }},
-        @{Name="Word Enabled Users"; Expression={ $_.wordEnabledUsers }},
-        @{Name="Word Active Users"; Expression={ $_.wordActiveUsers }},
-        @{Name="PowerPoint Enabled Users"; Expression={ $_.powerPointEnabledUsers }},
-        @{Name="PowerPoint Active Users"; Expression={ $_.powerPointActiveUsers }},
-        @{Name="Outlook Enabled Users"; Expression={ $_.outlookEnabledUsers }},
-        @{Name="Outlook Active Users"; Expression={ $_.outlookActiveUsers }},
-        @{Name="Excel Enabled Users"; Expression={ $_.excelEnabledUsers }},
-        @{Name="Excel Active Users"; Expression={ $_.excelActiveUsers }},
-        @{Name="OneNote Enabled Users"; Expression={ $_.oneNoteEnabledUsers }},
-        @{Name="OneNote Active Users"; Expression={ $_.oneNoteActiveUsers }},
-        @{Name="Loop Enabled Users"; Expression={ $_.loopEnabledUsers }},
-        @{Name="Loop Active Users"; Expression={ $_.loopActiveUsers }},
-        @{Name="All Enabled Users"; Expression={ $_.anyAppEnabledUsers }},
-        @{Name="All Active Users"; Expression={ $_.anyAppActiveUsers }},
-        @{Name="Edge Enabled Users"; Expression={ "" }},
-        @{Name="Edge Active Users"; Expression={ "" }},
-        @{Name="Microsoft 365 Copilot (app) Enabled Users"; Expression={ "" }},
-        @{Name="Microsoft 365 Copilot (app) Active Users"; Expression={ "" }},
-        @{Name="Copilot Chat Enabled Users"; Expression={ $_.copilotChatEnabledUsers }},
-        @{Name="Copilot Chat Active Users"; Expression={ $_.copilotChatActiveUsers }}
+    $formattedU1 | Export-Csv (Join-Path $OutputPath "CopilotAdoptionByProduct_$Period.csv") -NoTypeInformation
 
-    $formatted2 | Export-Csv (Join-Path $OutputPath "CopilotAdoptionTrend_$Period.csv") -NoTypeInformation
+    # Format u2 -> CSV
+    $obj2 = Get-Content $j2 -Raw | ConvertFrom-Json
+    $obj2.value.adoptionByDate |
+        Select-Object reportDate,
+            @{n="reportPeriod";e={$obj2.value.reportPeriod}},
+            microsoftTeamsEnabledUsers,
+            microsoftTeamsActiveUsers,
+            wordEnabledUsers,
+            wordActiveUsers,
+            excelEnabledUsers,
+            excelActiveUsers,
+            outlookEnabledUsers,
+            outlookActiveUsers,
+            anyAppEnabledUsers,
+            anyAppActiveUsers,
+            copilotChatEnabledUsers,
+            copilotChatActiveUsers |
+        Export-Csv (Join-Path $OutputPath "CopilotAdoptionTrend_$Period.csv") -NoTypeInformation
 
-    # --- Format u3 -> CSV ---
-    $obj3 = Get-Content $json3 -Raw | ConvertFrom-Json
+    # Format u3 -> CSV
+    (Get-Content $j3 -Raw | ConvertFrom-Json).value |
+        Export-Csv (Join-Path $OutputPath "CopilotUsageUserDetail_$Period.csv") -NoTypeInformation
 
-    $formatted3 = $obj3.value | Select-Object `
-        userPrincipalName, displayName, lastActivityDate, copilotChatLastActivityDate,
-        microsoftTeamsCopilotLastActivityDate, wordCopilotLastActivityDate, excelCopilotLastActivityDate,
-        powerPointCopilotLastActivityDate, outlookCopilotLastActivityDate, oneNoteCopilotLastActivityDate,
-        loopCopilotLastActivityDate
+    # Cleanup JSON
+    Remove-Item $OutputPath\Copilot*.json -Force -ErrorAction SilentlyContinue
 
-    $formatted3 | Export-Csv (Join-Path $OutputPath "CopilotUsageUserDetail_$Period.csv") -NoTypeInformation
+    # NEW: attempt additional Copilot-related *beta report cmdlets* if available in your module version
+    # This is the safest "add missing Copilot reports" method without guessing endpoint names.
+    if (Get-Module -ListAvailable -Name Microsoft.Graph.Beta.Reports) {
+        Import-Module Microsoft.Graph.Beta.Reports -ErrorAction SilentlyContinue
 
-    Write-Host "✅ Copilot reports exported to: $OutputPath" -ForegroundColor Green
+        Write-Host "📌 Attempting additional Copilot beta report cmdlets (module-driven)..." -ForegroundColor Cyan
+        Invoke-ReportCmdletsByPattern `
+            -ModuleName "Microsoft.Graph.Beta.Reports" `
+            -NamePatterns @("Get-MgBetaReport*Copilot*","Get-MgBetaReport*Microsoft365Copilot*") `
+            -Period $Period `
+            -OutputPath $OutputPath `
+            -FilePrefix "Copilot_Extra_"
+    }
+    else {
+        Write-Host "ℹ Microsoft.Graph.Beta.Reports not installed; skipping extra Copilot cmdlets." -ForegroundColor DarkGray
+    }
 
-    # --- Cleanup JSON files after CSV export ---
-    Get-ChildItem -Path $OutputPath -Filter 'Copilot*.json' -File | Remove-Item -Force -ErrorAction SilentlyContinue
-    Write-Host " 🧹 Copilot JSON files removed" -ForegroundColor DarkGray
+    Write-Host "✅ Copilot reports exported: $OutputPath" -ForegroundColor Green
 }
 
 #endregion
 
-#region Viva Engage Reports
+#region Viva Engage
 
 function Invoke-VivaEngageReports {
-    [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][ValidateSet("D7","D30","D60","D90","D180")][string]$Period,
-        [Parameter(Mandatory)][string]$OutputPath
+        [ValidateSet("D7","D30","D90","D180")]
+        [string]$Period,
+        [string]$OutputPath
     )
 
-    Ensure-Directory -Path $OutputPath
+    Ensure-Directory $OutputPath
     $ProgressPreference = 'SilentlyContinue'
 
-    Get-MgReportYammerActivityCount -Period $Period -OutFile (Join-Path $OutputPath "VivaEngage_ActivityByDate_$Period.csv")
-    Get-MgReportYammerActivityUserDetail -Period $Period -OutFile (Join-Path $OutputPath "VivaEngage_ActivityByUser_$Period.csv")
-    Get-MgReportYammerActivityUserCount -Period $Period -OutFile (Join-Path $OutputPath "VivaEngage_UserCounts_$Period.csv")
-    Get-MgReportYammerDeviceUsageUserDetail -Period $Period -OutFile (Join-Path $OutputPath "VivaEngage_DeviceUsageByUser_$Period.csv")
-    Get-MgReportYammerGroupActivityDetail -Period $Period -OutFile (Join-Path $OutputPath "VivaEngage_GroupActivityDetail_$Period.csv")
+    Write-Host "Exporting Viva Engage (Yammer) reports (Period=$Period) -> $OutputPath" -ForegroundColor Cyan
 
-    Write-Host "✅ Viva Engage reports exported to: $OutputPath" -ForegroundColor Green
+    # Map: cmdlet name -> output file. Each call is isolated so one failure
+    # (deprecated endpoint, tenant not provisioned, de-identified data) won't
+    # stop the others or kill the whole script.
+    $reports = @(
+        @{ Cmd = 'Get-MgReportYammerActivityCount';         File = 'VivaEngage_ActivityByDate' }
+        @{ Cmd = 'Get-MgReportYammerActivityUserDetail';    File = 'VivaEngage_ActivityByUser' }
+        @{ Cmd = 'Get-MgReportYammerActivityUserCount';     File = 'VivaEngage_UserCounts' }
+        @{ Cmd = 'Get-MgReportYammerDeviceUsageUserDetail'; File = 'VivaEngage_DeviceUsageByUser' }
+        @{ Cmd = 'Get-MgReportYammerGroupActivityDetail';   File = 'VivaEngage_GroupActivity' }
+    )
+
+    foreach ($r in $reports) {
+        $outFile = Join-Path $OutputPath ("{0}_{1}.csv" -f $r.File, $Period)
+
+        # Skip cleanly if the cmdlet isn't present in this module version
+        if (-not (Get-Command $r.Cmd -ErrorAction SilentlyContinue)) {
+            Write-Warning "Skipped (cmdlet not available): $($r.Cmd)"
+            continue
+        }
+
+        try {
+            & $r.Cmd -Period $Period -OutFile $outFile -ErrorAction Stop
+            Write-Host "  OK  $([IO.Path]::GetFileName($outFile))" -ForegroundColor DarkGreen
+        }
+        catch {
+            $msg = $_.Exception.Message
+            if ($msg -match 'Resource not found|404|BadRequest|400|not supported|deprecated') {
+                Write-Warning "Skipped (deprecated / not available in tenant): $($r.Cmd)"
+            }
+            else {
+                Write-Warning "Failed running $($r.Cmd): $msg"
+            }
+        }
+    }
+
+    Write-Host "Viva Engage reports step complete: $OutputPath" -ForegroundColor Green
 }
 
 #endregion
 
-#region Teams Reports
+#region Teams (EXPANDED - all available cmdlets)
 
 function Invoke-TeamsReports {
-    [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][ValidateSet("D7","D30","D60","D90","D180")][string]$Period,
-        [Parameter(Mandatory)][string]$OutputPath
+        [ValidateSet("D7","D30","D90","D180")]
+        [string]$Period,
+        [string]$OutputPath
     )
 
-    Ensure-Directory -Path $OutputPath
+    Ensure-Directory $OutputPath
     $ProgressPreference = 'SilentlyContinue'
 
-    # Keep the filename deterministic (no spaces is usually nicer for automation)
-    Get-MgReportTeamUserActivityUserDetail -Period $Period -OutFile (Join-Path $OutputPath "Teams_UserActivityUserDetail_$Period.csv")
+    Write-Host "Exporting Teams reports (Period=$Period) -> $OutputPath" -ForegroundColor Cyan
 
-    Write-Host "✅ Teams reports exported to: $OutputPath" -ForegroundColor Green
+    # Raw Graph report endpoints (same path your other workloads use).
+    # This avoids the Get-MgReportTeam* progress-bar bug entirely.
+    $reports = @(
+        @{ Endpoint = 'getTeamsUserActivityCounts';                 File = 'Teams_UserActivity_Counts' }
+        @{ Endpoint = 'getTeamsUserActivityUserCounts';             File = 'Teams_UserActivity_UserCounts' }
+        @{ Endpoint = 'getTeamsUserActivityUserDetail';             File = 'Teams_UserActivity_UserDetail' }
+        @{ Endpoint = 'getTeamsDeviceUsageUserCounts';              File = 'Teams_DeviceUsage_UserCounts' }
+        @{ Endpoint = 'getTeamsDeviceUsageUserDetail';              File = 'Teams_DeviceUsage_UserDetail' }
+        @{ Endpoint = 'getTeamsDeviceUsageDistributionUserCounts'; File = 'Teams_DeviceUsage_DistributionUserCounts' }
+        @{ Endpoint = 'getTeamsTeamActivityCounts';                 File = 'Teams_TeamActivity_Counts' }
+        @{ Endpoint = 'getTeamsTeamActivityDetail';                 File = 'Teams_TeamActivity_Detail' }
+        @{ Endpoint = 'getTeamsTeamActivityDistributionCounts';    File = 'Teams_TeamActivity_DistributionCounts' }
+        @{ Endpoint = 'getTeamsTeamCounts';                         File = 'Teams_TeamCounts' }
+    )
+
+    foreach ($r in $reports) {
+        $outFile = Join-Path $OutputPath ("{0}_{1}.csv" -f $r.File, $Period)
+        Export-GraphReportCsv -EndpointName $r.Endpoint -Period $Period -OutFile $outFile | Out-Null
+    }
+
+    Write-Host "Teams reports exported: $OutputPath" -ForegroundColor Green
+}
+
+#endregion
+
+#region SharePoint
+
+function Invoke-SharePointReports {
+    param(
+        [ValidateSet("D7","D30","D90","D180")]
+        [string]$Period,
+        [string]$OutputPath,
+        [switch]$Sites,
+        [switch]$Files,
+        [switch]$Storage,
+        [switch]$Pages,
+        [switch]$Activity
+    )
+
+    Ensure-Directory $OutputPath
+    $ProgressPreference = 'SilentlyContinue'
+
+    if (-not ($Sites -or $Files -or $Storage -or $Pages -or $Activity)) {
+        $Sites = $Files = $Storage = $Pages = $Activity = $true
+    }
+
+    Write-Host "📌 Exporting SharePoint reports (Period=$Period) -> $OutputPath" -ForegroundColor Cyan
+
+    if ($Sites) {
+        Export-GraphReportCsv -EndpointName "getSharePointSiteUsageDetail"       -Period $Period -OutFile "$OutputPath\SPO_SiteUsageDetail_$Period.csv" | Out-Null
+    }
+    if ($Files) {
+        Export-GraphReportCsv -EndpointName "getSharePointSiteUsageFileCounts"   -Period $Period -OutFile "$OutputPath\SPO_SiteUsage_FileCounts_$Period.csv" | Out-Null
+    }
+    if ($Storage) {
+        Export-GraphReportCsv -EndpointName "getSharePointSiteUsageStorage"      -Period $Period -OutFile "$OutputPath\SPO_SiteUsage_Storage_$Period.csv" | Out-Null
+    }
+    if ($Pages) {
+        Export-GraphReportCsv -EndpointName "getSharePointSiteUsagePages"        -Period $Period -OutFile "$OutputPath\SPO_SiteUsage_Pages_$Period.csv" | Out-Null
+    }
+    if ($Activity) {
+        Export-GraphReportCsv -EndpointName "getSharePointActivityFileCounts"    -Period $Period -OutFile "$OutputPath\SPO_Activity_FileCounts_$Period.csv" | Out-Null
+        Export-GraphReportCsv -EndpointName "getSharePointActivityUserDetail"    -Period $Period -OutFile "$OutputPath\SPO_Activity_UserDetail_$Period.csv" | Out-Null
+        Export-GraphReportCsv -EndpointName "getSharePointActivityPages"         -Period $Period -OutFile "$OutputPath\SPO_Activity_Pages_$Period.csv" | Out-Null
+    }
+
+    Write-Host "✅ SharePoint reports exported: $OutputPath" -ForegroundColor Green
+}
+
+#endregion
+
+#region OneDrive (FileViews removed)
+
+function Invoke-OneDriveReports {
+    param(
+        [ValidateSet("D7","D30","D90","D180")]
+        [string]$Period,
+        [string]$OutputPath,
+        [switch]$Usage,
+        [switch]$Activity
+    )
+
+    Ensure-Directory $OutputPath
+    $ProgressPreference = 'SilentlyContinue'
+
+    if (-not ($Usage -or $Activity)) { $Usage = $Activity = $true }
+
+    Write-Host "📌 Exporting OneDrive reports (Period=$Period) -> $OutputPath" -ForegroundColor Cyan
+
+    if ($Usage) {
+        Export-GraphReportCsv -EndpointName "getOneDriveUsageAccountDetail"      -Period $Period -OutFile "$OutputPath\OD_Usage_AccountDetail_$Period.csv" | Out-Null
+        Export-GraphReportCsv -EndpointName "getOneDriveUsageAccountCounts"      -Period $Period -OutFile "$OutputPath\OD_Usage_AccountCounts_$Period.csv" | Out-Null
+        Export-GraphReportCsv -EndpointName "getOneDriveUsageFileCounts"         -Period $Period -OutFile "$OutputPath\OD_Usage_FileCounts_$Period.csv" | Out-Null
+        Export-GraphReportCsv -EndpointName "getOneDriveUsageStorage"            -Period $Period -OutFile "$OutputPath\OD_Usage_Storage_$Period.csv" | Out-Null
+    }
+
+    if ($Activity) {
+        Export-GraphReportCsv -EndpointName "getOneDriveActivityUserDetail"      -Period $Period -OutFile "$OutputPath\OD_Activity_UserDetail_$Period.csv" | Out-Null
+        Export-GraphReportCsv -EndpointName "getOneDriveActivityUserCounts"      -Period $Period -OutFile "$OutputPath\OD_Activity_UserCounts_$Period.csv" | Out-Null
+        Export-GraphReportCsv -EndpointName "getOneDriveActivityFileCounts"      -Period $Period -OutFile "$OutputPath\OD_Activity_FileCounts_$Period.csv" | Out-Null
+
+        # REMOVED: getOneDriveActivityFileViews (not supported in your tenant/API)
+        # Export-GraphReportCsv -EndpointName "getOneDriveActivityFileViews" -Period $Period -OutFile "$OutputPath\OD_Activity_FileViews_$Period.csv"
+    }
+
+    Write-Host "✅ OneDrive reports exported: $OutputPath" -ForegroundColor Green
+}
+
+#endregion
+
+#region Exchange
+
+function Invoke-ExchangeReports {
+    param(
+        [ValidateSet("D7","D30","D90","D180")]
+        [string]$Period,
+        [string]$OutputPath,
+        [switch]$EmailActivity,
+        [switch]$EmailAppUsage,
+        [switch]$MailboxUsage
+    )
+
+    Ensure-Directory $OutputPath
+    $ProgressPreference = 'SilentlyContinue'
+
+    if (-not ($EmailActivity -or $EmailAppUsage -or $MailboxUsage)) {
+        $EmailActivity = $EmailAppUsage = $MailboxUsage = $true
+    }
+
+    Write-Host "📌 Exporting Exchange reports (Period=$Period) -> $OutputPath" -ForegroundColor Cyan
+
+    if ($EmailActivity) {
+        Export-GraphReportCsv -EndpointName "getEmailActivityCounts"             -Period $Period -OutFile "$OutputPath\EX_EmailActivity_Counts_$Period.csv" | Out-Null
+        Export-GraphReportCsv -EndpointName "getEmailActivityUserCounts"         -Period $Period -OutFile "$OutputPath\EX_EmailActivity_UserCounts_$Period.csv" | Out-Null
+        Export-GraphReportCsv -EndpointName "getEmailActivityUserDetail"         -Period $Period -OutFile "$OutputPath\EX_EmailActivity_UserDetail_$Period.csv" | Out-Null
+    }
+
+    if ($EmailAppUsage) {
+        Export-GraphReportCsv -EndpointName "getEmailAppUsageAppsUserCounts"     -Period $Period -OutFile "$OutputPath\EX_EmailAppUsage_AppsUserCounts_$Period.csv" | Out-Null
+        Export-GraphReportCsv -EndpointName "getEmailAppUsageUserCounts"         -Period $Period -OutFile "$OutputPath\EX_EmailAppUsage_UserCounts_$Period.csv" | Out-Null
+        Export-GraphReportCsv -EndpointName "getEmailAppUsageUserDetail"         -Period $Period -OutFile "$OutputPath\EX_EmailAppUsage_UserDetail_$Period.csv" | Out-Null
+    }
+
+    if ($MailboxUsage) {
+        Export-GraphReportCsv -EndpointName "getMailboxUsageDetail"              -Period $Period -OutFile "$OutputPath\EX_MailboxUsage_Detail_$Period.csv" | Out-Null
+        Export-GraphReportCsv -EndpointName "getMailboxUsageMailboxCounts"       -Period $Period -OutFile "$OutputPath\EX_MailboxUsage_MailboxCounts_$Period.csv" | Out-Null
+        Export-GraphReportCsv -EndpointName "getMailboxUsageQuotaStatusMailboxCounts" -Period $Period -OutFile "$OutputPath\EX_MailboxUsage_QuotaStatus_$Period.csv" | Out-Null
+        Export-GraphReportCsv -EndpointName "getMailboxUsageStorage"             -Period $Period -OutFile "$OutputPath\EX_MailboxUsage_Storage_$Period.csv" | Out-Null
+    }
+
+    Write-Host "✅ Exchange reports exported: $OutputPath" -ForegroundColor Green
 }
 
 #endregion
 
 # -------------------------
-# Main
+# MAIN
 # -------------------------
 
-# If user didn’t specify any switches, default to All
-if (-not ($Copilot -or $VivaEngage -or $Teams -or $All)) {
+# Default to All if nothing specified
+if (-not (
+    $Copilot -or $VivaEngage -or $Teams -or $SharePoint -or $OneDrive -or $Exchange -or $All -or
+    $SPSites -or $SPFiles -or $SPStorage -or $SPPages -or $SPActivity -or
+    $ODUsage -or $ODActivity -or
+    $EXEmailActivity -or $EXEmailAppUsage -or $EXMailboxUsage
+)) {
     $All = $true
 }
 
-# Import modules once
+# Reduce risk of function count issues
 Get-Module Microsoft.Graph* | Remove-Module -Force -ErrorAction SilentlyContinue
-# Must be set before importing large modules
 $MaximumFunctionCount = 8192
 
 Import-Module Microsoft.Graph.Authentication -ErrorAction Stop
+Import-Module Microsoft.Graph.Reports -ErrorAction Stop
 
-# Only load the report commands you actually use (dramatically reduces function count)
-Import-Module Microsoft.Graph.Reports -Function `
-    Get-MgReportYammerActivityCount,
-    Get-MgReportYammerActivityUserDetail,
-    Get-MgReportYammerActivityUserCount,
-    Get-MgReportYammerDeviceUsageUserDetail,
-    Get-MgReportYammerGroupActivityDetail,
-    Get-MgReportTeamUserActivityUserDetail -ErrorAction Stop
-
-# Connect once
 Connect-GraphApp -TenantId $TenantId -ClientId $ClientId -SecretPath $SecretPath
 
+$base = Join-Path $OutputRoot "M365"
+
 # Output paths
-$copilotPath = Join-Path $OutputRoot "M365\Copilot"
-$vivaPath    = Join-Path $OutputRoot "M365\VivaEngage"
-$teamsPath   = Join-Path $OutputRoot "M365\Teams"
+$copilotPath = Join-Path $base "Copilot"
+$vivaPath    = Join-Path $base "VivaEngage"
+$teamsPath   = Join-Path $base "Teams"
+$spoPath     = Join-Path $base "SharePoint"
+$odPath      = Join-Path $base "OneDrive"
+$exPath      = Join-Path $base "Exchange"
 
 try {
-    if ($All -or $Copilot)    { Invoke-CopilotReports -Period $Period -OutputPath $copilotPath }
+    if ($All -or $Copilot)    { Invoke-CopilotReports    -Period $Period -OutputPath $copilotPath }
     if ($All -or $VivaEngage) { Invoke-VivaEngageReports -Period $Period -OutputPath $vivaPath }
-    if ($All -or $Teams)      { Invoke-TeamsReports -Period $Period -OutputPath $teamsPath }
+    if ($All -or $Teams)      { Invoke-TeamsReports      -Period $Period -OutputPath $teamsPath }
+
+    $runGranularSP = ($SPSites -or $SPFiles -or $SPStorage -or $SPPages -or $SPActivity)
+    if ($All -or $SharePoint -or $runGranularSP) {
+        Invoke-SharePointReports -Period $Period -OutputPath $spoPath `
+            -Sites:$SPSites -Files:$SPFiles -Storage:$SPStorage -Pages:$SPPages -Activity:$SPActivity
+    }
+
+    $runGranularOD = ($ODUsage -or $ODActivity)
+    if ($All -or $OneDrive -or $runGranularOD) {
+        Invoke-OneDriveReports -Period $Period -OutputPath $odPath `
+            -Usage:$ODUsage -Activity:$ODActivity
+    }
+
+    $runGranularEX = ($EXEmailActivity -or $EXEmailAppUsage -or $EXMailboxUsage)
+    if ($All -or $Exchange -or $runGranularEX) {
+        Invoke-ExchangeReports -Period $Period -OutputPath $exPath `
+            -EmailActivity:$EXEmailActivity -EmailAppUsage:$EXEmailAppUsage -MailboxUsage:$EXMailboxUsage
+    }
 }
 finally {
     Disconnect-MgGraph | Out-Null
 }
 
-# Run everything for 180 days:
-# .\Get-M365UsageReports.ps1 -All -Period D180
+<# Examples
 
-# Run only Copilot + Teams for 30 days: 
-# .\Get-M365UsageReports.ps1 -Copilot -Teams -Period D30
+# Everything (D30)
+.\Get-M365UsageReports.ps1 -All -Period D30
 
-# Change output root:
-# .\Get-M365UsageReports.ps1 -All -Period D90 -OutputRoot "D:\Reporting\M365"
+# OneDrive + Exchange only
+.\Get-M365UsageReports.ps1 -OneDrive -Exchange -Period D90
+
+# All Teams reports available in your module version
+.\Get-M365UsageReports.ps1 -Teams -Period D30
+
+# Copilot (known endpoints + any extra Copilot beta cmdlets if available)
+.\Get-M365UsageReports.ps1 -Copilot -Period D30
+
+#>
