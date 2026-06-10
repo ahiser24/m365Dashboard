@@ -108,10 +108,14 @@
 
         <div class="loadbox hidden" id="fallbackBox">
           <h2>Add the data files to view the board</h2>
-          <p>This board reads the five Viva Engage CSV exports listed below. When the page is opened directly from your
-            computer, browsers block automatic file access for security - so drop the five files below to
-            load them. Your data stays on your machine; nothing is uploaded anywhere.</p>
+          <p>This board ingests the usage reports listed below.</p>
           <div class="drop" id="dropZone">
+            <svg class="drop-icon" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
             <strong>Drop the 5 CSV files here</strong> or click to choose them
             <input type="file" id="fileInput" accept=".csv" multiple class="hidden">
           </div>
@@ -168,7 +172,7 @@
         <section id="tab-trends" class="tabpanel hidden">
           <div class="section">
             <h2>Activity trends</h2>
-            <p class="lede">Daily totals (left) and the number of unique people taking each action (right). Weekend
+            <p class="lede">Daily totals and the number of unique people taking each action. Weekend
               troughs are normal.</p>
           </div>
           <div class="grid three">
@@ -205,8 +209,7 @@
         <section id="tab-communities" class="tabpanel hidden">
           <div class="section">
             <h2>Communities</h2>
-            <p class="lede">Every community with activity in the period. Sort any column; drag a column edge to resize;
-              search by name or owner.</p>
+            <p class="lede">Every community with activity in the period.</p>
           </div>
           <div class="controls">
             <input type="search" id="grpSearch" placeholder="Search community or owner&hellip;">
@@ -229,8 +232,8 @@
         <section id="tab-contributors" class="tabpanel hidden">
           <div class="section">
             <h2>People</h2>
-            <p class="lede">Engaged users ranked by activity. Click any column heading to sort; drag a column edge to
-              resize; search to find anyone.</p>
+            <p class="lede">Engaged users ranked by activity.
+            </p>
           </div>
           <div class="controls">
             <input type="search" id="usrSearch" placeholder="Search person&hellip;">
@@ -270,9 +273,7 @@
         </section>
       </div>
 
-      <footer class="app">
-        <span id="footNote"></span>
-      </footer>
+
     </div>
 
     <!-- Microsoft Copilot section -->
@@ -304,12 +305,14 @@
 
         <div class="loadbox hidden" id="cpFallbackBox">
           <h2>Add the data files to view the board</h2>
-          <p>This board reads three required Microsoft 365 Copilot usage exports, plus up to five optional
-            reports (Agents and Copilot Chat) that unlock the extra tabs - eight files in all. When the page
-            is opened directly from your computer, browsers block automatic file access for security, so drop
-            the files below to load them. Drop all of them at once; the optional ones can be added anytime.
-            Your data stays on your machine; nothing is uploaded anywhere.</p>
+          <p>This board ingests the usage reports listed below.</p>
           <div class="drop" id="cpDropZone">
+            <svg class="drop-icon" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
             <strong>Drop your CSV files here</strong> or click to choose them
             <span class="cnote">3 required &middot; 5 optional</span>
             <input type="file" id="cpFileInput" accept=".csv" multiple class="hidden">
@@ -361,8 +364,7 @@
             </div>
             <div class="card chart-card">
               <p class="ctitle">Average daily active users by app</p>
-              <p class="cnote">Mean daily active users per Copilot surface across the window (from the activity-trend
-                export).</p>
+              <p class="cnote">Mean daily active users per Copilot surface across the window.</p>
               <div id="cpByApp"></div>
             </div>
           </div>
@@ -381,7 +383,7 @@
           <div class="section">
             <h2>By product</h2>
             <p class="lede">Enabled vs. active users per Copilot surface, with adoption rate. Snapshot from the latest
-              adoption-by-product export. Sort any column; drag a column edge to resize.</p>
+              adoption-by-product export.</p>
           </div>
           <div class="grid two section">
             <div class="card chart-card">
@@ -576,9 +578,7 @@
         </section>
       </div>
 
-      <footer class="app">
-        <span id="cpFootNote"></span>
-      </footer>
+
     </div>
 
     <!-- Microsoft Teams section -->
@@ -610,11 +610,14 @@
 
         <div class="loadbox hidden" id="tmFallbackBox">
           <h2>Add the data file to view the board</h2>
-          <p>This board reads the Microsoft Teams user-activity export
-            (Teams_UserActivityUserDetail). When the page is opened directly from your computer, browsers
-            block automatic file access for security - so drop the file below to load it. Your data stays
-            on your machine; nothing is uploaded anywhere.</p>
+          <p>This board ingests the usage reports listed below.</p>
           <div class="drop" id="tmDropZone">
+            <svg class="drop-icon" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
             <strong>Drop the Teams CSV here</strong> or click to choose it
             <input type="file" id="tmFileInput" accept=".csv" multiple class="hidden">
           </div>
@@ -720,7 +723,7 @@
         <section id="tmtab-people" class="tm-tabpanel hidden">
           <div class="section">
             <h2>People</h2>
-            <p class="lede">Per-person Teams activity. Click any column heading to sort; drag a column edge to resize;
+            <p class="lede">Per-person Teams activity.
               search to find anyone.</p>
           </div>
           <div class="controls">
@@ -737,9 +740,7 @@
         </section>
       </div>
 
-      <footer class="app">
-        <span id="tmFootNote"></span>
-      </footer>
+
     </div>
 
   </div>

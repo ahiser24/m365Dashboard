@@ -327,7 +327,7 @@
       var tipv=opt.tipv? opt.tipv(d) : fmt(d.v);
       out+='<rect x="'+pl+'" y="'+y+'" width="'+w.toFixed(1)+'" height="'+rowH+'" rx="5" fill="'+col+'"'+
            ' data-tip="'+esc(d.label)+'" data-tipv="'+esc(tipv)+'" data-tipc="'+col+'"></rect>';
-      out+='<text x="'+(pl-8)+'" y="'+(y+rowH/2+4)+'" text-anchor="end" font-size="12" fill="var(--ink)">'+esc(opt.clip!==false? clip(d.label,26):d.label)+'</text>';
+      out+='<text x="'+(pl-8)+'" y="'+(y+rowH/2+4)+'" text-anchor="end" font-size="12" fill="var(--ink)">'+esc(opt.clip!==false? clip(d.label,Math.floor((pl-10)/6.5)):d.label)+'</text>';
       out+='<text x="'+(pl+w+7).toFixed(1)+'" y="'+(y+rowH/2+4)+'" font-size="11.5" fill="var(--muted)">'+esc(vlabel)+'</text>';
     });
     return out+'</svg>';
@@ -531,11 +531,22 @@
     }).join("");
     this.syncAria();
     if(this.opts.onCount) this.opts.onCount(total, shown.length);
-    if(this.selectable) this.renderCompareBar();
     
     var wrap = this.table.closest ? this.table.closest(".tablewrap") : null;
     if(wrap){
       if(!this.pagerEl){
+        var sib = wrap.nextSibling;
+        while(sib){
+          var nextSib = sib.nextSibling;
+          if(sib.nodeType === 1){
+            if(sib.classList.contains("table-pagination") || sib.classList.contains("cmp-bar") || sib.classList.contains("cmp-panel")){
+              sib.parentNode.removeChild(sib);
+            } else if(sib.classList.contains("tablewrap") || sib.tagName === "TABLE"){
+              break;
+            }
+          }
+          sib = nextSib;
+        }
         this.pagerEl = document.createElement("div");
         this.pagerEl.className = "table-pagination";
         wrap.parentNode.insertBefore(this.pagerEl, wrap.nextSibling);
@@ -561,6 +572,7 @@
       }
       this.renderPager(total, start, end, numPages);
     }
+    if(this.selectable) this.renderCompareBar();
   };
 
   SortTable.prototype.keyOf=function(r){
@@ -578,6 +590,18 @@
     if(this.cmpUI) return this.cmpUI;
     var self=this, wrap=this.table.closest? this.table.closest(".tablewrap") : null;
     var anchor=wrap||this.table;
+    var sib = anchor.nextSibling;
+    while(sib){
+      var nextSib = sib.nextSibling;
+      if(sib.nodeType === 1){
+        if(sib.classList.contains("cmp-bar") || sib.classList.contains("cmp-panel")){
+          sib.parentNode.removeChild(sib);
+        } else if(sib.classList.contains("tablewrap") || sib.tagName === "TABLE"){
+          break;
+        }
+      }
+      sib = nextSib;
+    }
     var bar=document.createElement("div"); bar.className="cmp-bar hidden";
     var info=document.createElement("span"); info.className="cmp-info";
     var go=document.createElement("button"); go.type="button"; go.className="btn ghost cmp-go"; go.textContent="Compare";
@@ -633,15 +657,13 @@
   // Renderers
   function renderHeader(){
     var p=DATA.period, wd=DATA.windowDays;
-    $("cpSubtitle").innerHTML = "Microsoft 365 Copilot adoption across The Mosaic Company &middot; rolling "+wd+"-day window";
+    $("cpSubtitle").innerHTML = "Microsoft 365 Copilot adoption &middot; rolling "+wd+"-day window";
     var pills=[];
     pills.push('<span class="pill">Window: '+wd+' days</span>');
     if(p.from&&p.to) pills.push('<span class="pill">'+esc(p.from)+' to '+esc(p.to)+'</span>');
     if(DATA.refresh) pills.push('<span class="pill">Data refreshed '+esc(DATA.refresh)+'</span>');
     pills.push('<span class="pill">'+fmt(DATA.enabledLatest||DATA.allEnabledSnap)+' Copilot-enabled users</span>');
     $("cpMetaPills").innerHTML=pills.join("");
-    $("cpFootNote").innerHTML = "Generated from Microsoft 365 Copilot usage exports &middot; "+wd+"-day window, "+esc(p.from)+" &ndash; "+esc(p.to)+
-      " &middot; the three exports use different definitions of “active” — each panel notes its source.";
   }
 
   function renderKpis(){
@@ -936,11 +958,7 @@
     return tryNext();
   }
   function boot(isReload){
-    $("cpStatus").classList.remove("hidden");
-    $("cpLoadingBox").classList.remove("hidden");
-    $("cpFallbackBox").classList.add("hidden");
-    if(isReload) $("cpDash").classList.add("hidden");
-    fetchAll().then(function(){ renderAll(); }).catch(function(err){ showFallback(err); });
+    showFallback();
   }
 
   // Fallback uploader
