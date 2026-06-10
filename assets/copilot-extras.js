@@ -6,10 +6,9 @@
 
   // Helper functions
   function $(id){ return document.getElementById(id); }
-  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
-    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
-  function num(v){ var n=parseFloat(String(v==null?"":v).replace(/,/g,"")); return isFinite(n)?n:0; }
-  function fmt(n){ n=Math.round(n); return n.toLocaleString("en-US"); }
+  var esc = window.Utils.esc;
+  var num = window.Utils.num;
+  var fmt = window.Utils.fmt;
   function getUserField(row, possibleFields) {
     if (!row) return "";
     for (var i = 0; i < possibleFields.length; i++) {
@@ -25,14 +24,9 @@
     }
     return "";
   }
-  function fmtShort(n){
-    n=Math.round(n);
-    if(Math.abs(n)>=1e6) return (n/1e6).toFixed(n%1e6?1:0)+"M";
-    if(Math.abs(n)>=1e3) return (n/1e3).toFixed(n%1e3?1:0)+"k";
-    return String(n);
-  }
-  function pct(a,b){ return b? Math.round(a/b*1000)/10 : 0; }
-  function clip(s,n){ s=String(s); return s.length>n? s.slice(0,n-1)+"…" : s; }
+  var fmtShort = window.Utils.fmtShort;
+  var pct = window.Utils.pct;
+  var clip = window.Utils.clip;
   var COLORS = ["var(--c1)","var(--c2)","var(--c3)","var(--c4)","var(--c5)","var(--c6)","var(--c7)","var(--c8)"];
 
   // Copilot Chat surfaces

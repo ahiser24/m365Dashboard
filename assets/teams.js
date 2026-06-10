@@ -15,18 +15,12 @@
 
   // Helpers
   function $(id){ return document.getElementById(id); }
-  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){
-    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
-  function num(v){ var n=parseFloat(v); return isFinite(n)?n:0; }
-  function fmt(n){ n=Math.round(n); return n.toLocaleString("en-US"); }
-  function fmtShort(n){
-    n=Math.round(n);
-    if(Math.abs(n)>=1e6) return (n/1e6).toFixed(n%1e6?1:0)+"M";
-    if(Math.abs(n)>=1e3) return (n/1e3).toFixed(n%1e3?1:0)+"k";
-    return String(n);
-  }
-  function pct(a,b){ return b? Math.round(a/b*1000)/10 : 0; }
-  function clip(s,n){ s=String(s); return s.length>n? s.slice(0,n-1)+"…" : s; }
+  var esc = window.Utils.esc;
+  var num = window.Utils.num;
+  var fmt = window.Utils.fmt;
+  var fmtShort = window.Utils.fmtShort;
+  var pct = window.Utils.pct;
+  var clip = window.Utils.clip;
   // Extrapolate name from UPN since display name is missing
   function shortName(upn){
     var local=String(upn||"").split("@")[0];
